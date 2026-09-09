@@ -14,9 +14,11 @@ import {
   Flame,
   Home,
   Landmark,
+  Leaf,
   Languages,
   LogOut,
   Menu,
+  Globe2,
   Settings,
   Target,
   Trophy,
@@ -31,10 +33,13 @@ type Screen = "landing" | "auth" | "dashboard";
 type AuthMode = "signup" | "login";
 
 const subjects = [
-  { name: "Українська мова", short: "УКР", icon: BookOpen, progress: 72, tests: 8, tone: "lime" },
-  { name: "Математика", short: "МАТ", icon: Calculator, progress: 54, tests: 6, tone: "blue" },
-  { name: "Історія України", short: "ІСТ", icon: Landmark, progress: 41, tests: 4, tone: "violet" },
-  { name: "Англійська мова", short: "ENG", icon: Languages, progress: 63, tests: 7, tone: "orange" },
+  { slug: "mathematics", name: "Математика", short: "МАТ", icon: Calculator, progress: 54, tests: 6, tone: "blue" },
+  { slug: "ukrainian", name: "Українська мова", short: "УКР", icon: BookOpen, progress: 72, tests: 8, tone: "lime" },
+  { slug: "english", name: "Англійська мова", short: "ENG", icon: Languages, progress: 63, tests: 7, tone: "orange" },
+  { slug: "history", name: "Історія України", short: "ІСТ", icon: Landmark, progress: 41, tests: 4, tone: "violet" },
+  { slug: "german", name: "Німецька мова", short: "DEU", icon: Languages, progress: 36, tests: 3, tone: "rose" },
+  { slug: "biology", name: "Біологія", short: "БІО", icon: Leaf, progress: 28, tests: 2, tone: "teal" },
+  { slug: "geography", name: "Географія", short: "ГЕО", icon: Globe2, progress: 47, tests: 5, tone: "cyan" },
 ];
 
 const activity = [
@@ -44,11 +49,11 @@ const activity = [
 
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
-    <button type="button" onClick={() => window.location.reload()} className="group flex items-center gap-3 text-left" aria-label="NMT Focus — на головну">
+    <button type="button" onClick={() => window.location.reload()} className="group flex items-center gap-3 text-left" aria-label="Vekto — на головну">
       <span className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/[0.04] transition group-hover:border-[#c8ff38]/50">
         <span className="size-2.5 rounded-full bg-[#c8ff38] shadow-[0_0_18px_#c8ff38]" />
       </span>
-      {!compact && <span className="text-[15px] font-semibold tracking-[-0.02em] text-white">NMT<span className="text-white/35">/</span>FOCUS</span>}
+      {!compact && <span className="text-[15px] font-semibold tracking-[-0.02em] text-white">VEKTO</span>}
     </button>
   );
 }
@@ -79,7 +84,7 @@ function Landing({ onStart, onLogin }: { onStart: () => void; onLogin: () => voi
             <div className="flex items-center gap-3 px-3 text-sm text-white/38"><CheckCircle2 className="size-4 text-white/55" /> Перший тест — одразу після входу</div>
           </div>
           <div className="mt-14 grid max-w-xl grid-cols-3 border-t border-white/10 pt-7">
-            <div><strong className="block text-2xl font-semibold tracking-tight">4</strong><span className="text-sm text-white/36">предмети</span></div>
+            <div><strong className="block text-2xl font-semibold tracking-tight">7</strong><span className="text-sm text-white/36">предметів</span></div>
             <div className="border-l border-white/10 pl-6"><strong className="block text-2xl font-semibold tracking-tight">200</strong><span className="text-sm text-white/36">твоя ціль</span></div>
             <div className="border-l border-white/10 pl-6"><strong className="block text-2xl font-semibold tracking-tight">24/7</strong><span className="text-sm text-white/36">доступ</span></div>
           </div>
@@ -122,7 +127,7 @@ function AuthScreen({ mode, setMode, onBack, onSuccess }: { mode: AuthMode; setM
             ))}
           </div>
         </div>
-        <p className="relative text-sm text-white/25">NMT/FOCUS · 2026</p>
+        <p className="relative text-sm text-white/25">VEKTO · 2026</p>
       </section>
       <section className="flex min-h-screen flex-col px-5 py-5 sm:px-10 sm:py-8 lg:px-16 xl:px-24">
         <div className="flex items-center justify-between lg:justify-end"><div className="lg:hidden"><Brand compact /></div><Button variant="ghost" size="icon" onClick={onBack} className="rounded-full text-white/55 hover:bg-white/10 hover:text-white" aria-label="Закрити"><X className="size-5" /></Button></div>
@@ -150,6 +155,24 @@ function AuthScreen({ mode, setMode, onBack, onSuccess }: { mode: AuthMode; setM
 function Dashboard({ onExit }: { onExit: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
+  const [bankState, setBankState] = useState<{ status: "idle" | "loading" | "ready" | "error"; total?: number; topic?: string; prompt?: string }>({ status: "idle" });
+  const openSubject = (name: string) => {
+    setActiveSubject(name);
+    const subject = subjects.find((item) => item.name === name);
+    if (!subject) {
+      setBankState({ status: "idle" });
+      return;
+    }
+    setBankState({ status: "loading" });
+    fetch(`/api/questions?subject=${subject.slug}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("База даних недоступна");
+        const payload = await response.json() as { total: number; questions?: Array<{ topic?: string; prompt?: string }> };
+        const first = payload.questions?.[0];
+        setBankState({ status: "ready", total: payload.total, topic: first?.topic, prompt: first?.prompt });
+      })
+      .catch(() => setBankState({ status: "error" }));
+  };
   return (
     <main className="min-h-screen bg-[#090b0a] text-white">
       <div className="mx-auto grid min-h-screen max-w-[1600px] lg:grid-cols-[236px_1fr]">
@@ -161,29 +184,29 @@ function Dashboard({ onExit }: { onExit: () => void }) {
             <button className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-white/42 transition hover:bg-white/[0.04] hover:text-white"><BarChart3 className="size-4" /> Статистика</button>
           </nav>
           <div className="mt-9 border-t border-white/8 pt-7"><p className="px-3 text-xs uppercase tracking-[0.16em] text-white/20">Предмети</p><div className="mt-3 space-y-1">
-            {subjects.map((subject) => <button key={subject.short} onClick={() => setActiveSubject(subject.name)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/42 transition hover:bg-white/[0.04] hover:text-white"><span className={`size-2 rounded-full subject-${subject.tone}`} /> {subject.short}</button>)}
+            {subjects.map((subject) => <button key={subject.short} onClick={() => openSubject(subject.name)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/42 transition hover:bg-white/[0.04] hover:text-white"><span className={`size-2 rounded-full subject-${subject.tone}`} /> {subject.short}</button>)}
           </div></div>
           <div className="mt-auto space-y-1 pt-6"><button className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-white/35 hover:text-white"><Settings className="size-4" /> Налаштування</button><button onClick={onExit} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-white/35 hover:text-white"><LogOut className="size-4" /> Вийти</button></div>
         </aside>
         {menuOpen && <button aria-label="Закрити меню" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-30 bg-black/70 lg:hidden" />}
         <section className="min-w-0 px-5 pb-12 pt-5 sm:px-8 lg:px-10 xl:px-14">
           <header className="flex items-center justify-between"><Button variant="ghost" size="icon" onClick={() => setMenuOpen(true)} className="rounded-full text-white hover:bg-white/10 lg:hidden"><Menu /></Button><div className="hidden lg:block"><p className="text-sm text-white/30">Середа, 9 вересня</p></div><div className="ml-auto flex items-center gap-3"><div className="hidden text-right sm:block"><p className="text-sm font-medium">Олексій</p><p className="text-xs text-white/28">ціль: 185+</p></div><span className="grid size-11 place-items-center rounded-full border border-white/10 bg-[#171b18] text-sm font-semibold text-[#c8ff38]">О</span></div></header>
-          <div className="mt-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-[#c8ff38]">Твій кабінет</p><h1 className="mt-2 text-4xl font-semibold tracking-[-0.045em] sm:text-5xl">Привіт, Олексію.</h1><p className="mt-3 text-base text-white/38">Сьогодні достатньо зробити один сильний крок.</p></div><Button onClick={() => setActiveSubject("Швидкий тест")} className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/85">Швидкий тест <ArrowRight className="size-4" /></Button></div>
+          <div className="mt-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-sm font-medium text-[#c8ff38]">Твій кабінет</p><h1 className="mt-2 text-4xl font-semibold tracking-[-0.045em] sm:text-5xl">Привіт, Олексію.</h1><p className="mt-3 text-base text-white/38">Сьогодні достатньо зробити один сильний крок.</p></div><Button onClick={() => openSubject("Математика")} className="h-12 rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/85">Швидкий тест <ArrowRight className="size-4" /></Button></div>
           <div className="mt-9 grid gap-4 md:grid-cols-3">
             {[{ icon: Trophy, label: "Середній бал", value: "168", note: "+6 за 30 днів", color: "text-[#c8ff38]" }, { icon: ClipboardCheck, label: "Тестів пройдено", value: "25", note: "7 цього тижня", color: "text-blue-400" }, { icon: Flame, label: "Серія занять", value: "6 днів", note: "твій рекорд — 11", color: "text-orange-400" }].map(({ icon: Icon, label, value, note, color }) => (
               <article key={label} className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5 sm:p-6"><div className="flex items-center justify-between"><p className="text-sm text-white/38">{label}</p><Icon className={`size-4 ${color}`} /></div><p className="mt-7 text-3xl font-semibold tracking-[-0.04em]">{value}</p><p className="mt-1 text-sm text-white/28">{note}</p></article>
             ))}
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-            <article className="rounded-[28px] border border-white/8 bg-[#111412] p-5 sm:p-7"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-white/35">Наступний крок</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Математика: рівняння</h2></div><span className="grid size-10 place-items-center rounded-full bg-[#c8ff38]/10 text-[#c8ff38]"><Calculator className="size-5" /></span></div><p className="mt-4 max-w-xl text-base leading-7 text-white/38">Короткий сет із 15 завдань за темою, де ти найчастіше втрачаєш бали.</p><div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3"><span className="flex items-center gap-2 text-sm text-white/38"><Clock3 className="size-4" /> 25 хвилин</span><span className="flex items-center gap-2 text-sm text-white/38"><Target className="size-4" /> ціль: 12/15</span><Button onClick={() => setActiveSubject("Математика")} className="ml-auto h-11 rounded-full bg-[#c8ff38] px-5 text-black hover:bg-[#d5ff65]">Почати <ArrowUpRight className="size-4" /></Button></div></article>
+            <article className="rounded-[28px] border border-white/8 bg-[#111412] p-5 sm:p-7"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-white/35">Наступний крок</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Математика: рівняння</h2></div><span className="grid size-10 place-items-center rounded-full bg-[#c8ff38]/10 text-[#c8ff38]"><Calculator className="size-5" /></span></div><p className="mt-4 max-w-xl text-base leading-7 text-white/38">Короткий сет із 15 завдань за темою, де ти найчастіше втрачаєш бали.</p><div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3"><span className="flex items-center gap-2 text-sm text-white/38"><Clock3 className="size-4" /> 25 хвилин</span><span className="flex items-center gap-2 text-sm text-white/38"><Target className="size-4" /> ціль: 12/15</span><Button onClick={() => openSubject("Математика")} className="ml-auto h-11 rounded-full bg-[#c8ff38] px-5 text-black hover:bg-[#d5ff65]">Почати <ArrowUpRight className="size-4" /></Button></div></article>
             <article className="rounded-[28px] border border-white/8 bg-white/[0.025] p-5 sm:p-7"><div className="flex items-center justify-between"><div><p className="text-sm text-white/35">Активність</p><h2 className="mt-2 text-xl font-semibold">Цей тиждень</h2></div><span className="text-sm text-[#c8ff38]">4 год 20 хв</span></div><div className="mt-8 flex h-32 items-end gap-2 sm:gap-3">{activity.map((day) => <div key={day.label} className="flex h-full flex-1 flex-col items-center justify-end gap-2"><div className="w-full rounded-full bg-white/[0.06]"><div className="w-full rounded-full bg-white/45 transition hover:bg-[#c8ff38]" style={{ height: `${day.value}px` }} /></div><span className="text-xs text-white/25">{day.label}</span></div>)}</div></article>
           </div>
           <section className="mt-10"><div className="mb-5 flex items-end justify-between"><div><p className="text-sm text-white/30">Твій прогрес</p><h2 className="mt-1 text-2xl font-semibold tracking-tight">Предмети</h2></div><button className="text-sm text-white/35 transition hover:text-white">Усі результати</button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {subjects.map(({ name, short, icon: Icon, progress, tests, tone }) => <button key={name} onClick={() => setActiveSubject(name)} className="group rounded-[22px] border border-white/8 bg-white/[0.025] p-5 text-left transition hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.045]"><div className="flex items-center justify-between"><span className={`grid size-10 place-items-center rounded-full subject-bg-${tone}`}><Icon className="size-4" /></span><ChevronRight className="size-4 text-white/20 transition group-hover:translate-x-0.5 group-hover:text-white/70" /></div><p className="mt-7 text-base font-medium">{name}</p><p className="mt-1 text-sm text-white/28">{tests} тестів пройдено</p><div className="mt-5 flex items-center gap-3"><Progress value={progress} className="h-1.5 bg-white/8 [&_[data-slot=progress-indicator]]:bg-white/70" /><span className="text-xs text-white/35">{progress}%</span></div><span className="sr-only">{short}</span></button>)}
+            {subjects.map(({ name, short, icon: Icon, progress, tests, tone }) => <button key={name} onClick={() => openSubject(name)} className="group rounded-[22px] border border-white/8 bg-white/[0.025] p-5 text-left transition hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.045]"><div className="flex items-center justify-between"><span className={`grid size-10 place-items-center rounded-full subject-bg-${tone}`}><Icon className="size-4" /></span><ChevronRight className="size-4 text-white/20 transition group-hover:translate-x-0.5 group-hover:text-white/70" /></div><p className="mt-7 text-base font-medium">{name}</p><p className="mt-1 text-sm text-white/28">{tests} тестів пройдено</p><div className="mt-5 flex items-center gap-3"><Progress value={progress} className="h-1.5 bg-white/8 [&_[data-slot=progress-indicator]]:bg-white/70" /><span className="text-xs text-white/35">{progress}%</span></div><span className="sr-only">{short}</span></button>)}
           </div></section>
         </section>
       </div>
-      {activeSubject && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="demo-title"><div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#141715] p-6 shadow-2xl sm:p-8"><div className="flex items-start justify-between"><span className="grid size-12 place-items-center rounded-full bg-[#c8ff38]/10 text-[#c8ff38]"><CheckCircle2 className="size-5" /></span><Button variant="ghost" size="icon" onClick={() => setActiveSubject(null)} className="rounded-full text-white/45 hover:bg-white/10 hover:text-white"><X /></Button></div><h2 id="demo-title" className="mt-8 text-3xl font-semibold tracking-tight">{activeSubject}</h2><p className="mt-3 text-base leading-7 text-white/42">Каркас цього розділу готовий. Питання, таймер і збереження результатів додамо разом із базою даних.</p><Button onClick={() => setActiveSubject(null)} className="mt-8 h-12 w-full rounded-full bg-white text-black hover:bg-white/85">Зрозуміло</Button></div></div>}
+      {activeSubject && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="demo-title"><div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#141715] p-6 shadow-2xl sm:p-8"><div className="flex items-start justify-between"><span className="grid size-12 place-items-center rounded-full bg-[#c8ff38]/10 text-[#c8ff38]"><CheckCircle2 className="size-5" /></span><Button variant="ghost" size="icon" onClick={() => setActiveSubject(null)} className="rounded-full text-white/45 hover:bg-white/10 hover:text-white"><X /></Button></div><h2 id="demo-title" className="mt-8 text-3xl font-semibold tracking-tight">{activeSubject}</h2>{bankState.status === "loading" && <p className="mt-3 text-base leading-7 text-white/42">Підключаю банк реальних завдань…</p>}{bankState.status === "ready" && <><p className="mt-3 text-base leading-7 text-white/42">У базі — <span className="text-white">{bankState.total}</span> завдань із двох сесій НМТ-2025.</p><p className="mt-5 rounded-2xl border border-white/8 bg-black/20 p-4 text-sm leading-6 text-white/55"><span className="text-[#c8ff38]">{bankState.topic}</span><br />{bankState.prompt}</p></>}{bankState.status === "error" && <p className="mt-3 text-base leading-7 text-white/42">Демо готове. Після застосування міграції D1 цей розділ покаже всі реальні завдання та теми.</p>}<Button onClick={() => setActiveSubject(null)} className="mt-8 h-12 w-full rounded-full bg-white text-black hover:bg-white/85">Зрозуміло</Button></div></div>}
     </main>
   );
 }
@@ -206,8 +229,8 @@ export default function HomePage() {
     const lifecycle = new AbortController();
 
     void Promise.resolve(modelContext.registerTool({
-      name: "start_nmt_access",
-      title: "Відкрити NMT Focus",
+      name: "start_vekto_access",
+      title: "Відкрити Vekto",
       description: "Відкрити у видимому інтерфейсі реєстрацію або вхід до кабінету підготовки НМТ.",
       inputSchema: {
         type: "object",

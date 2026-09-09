@@ -89,10 +89,16 @@ button { cursor: pointer; }
 .subject-blue { background: #6687ff; box-shadow: 0 0 12px #6687ff70; }
 .subject-violet { background: #a783ff; box-shadow: 0 0 12px #a783ff70; }
 .subject-orange { background: #ff9c5a; box-shadow: 0 0 12px #ff9c5a70; }
+.subject-rose { background: #ff7aa8; box-shadow: 0 0 12px #ff7aa870; }
+.subject-teal { background: #4fe0c1; box-shadow: 0 0 12px #4fe0c170; }
+.subject-cyan { background: #65c8ff; box-shadow: 0 0 12px #65c8ff70; }
 .subject-bg-lime { background: #c8ff3818; color: #c8ff38; }
 .subject-bg-blue { background: #6687ff18; color: #8aa2ff; }
 .subject-bg-violet { background: #a783ff18; color: #ba9dff; }
 .subject-bg-orange { background: #ff9c5a18; color: #ffb17e; }
+.subject-bg-rose { background: #ff7aa818; color: #ff9cbe; }
+.subject-bg-teal { background: #4fe0c118; color: #72ecd2; }
+.subject-bg-cyan { background: #65c8ff18; color: #88d7ff; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }

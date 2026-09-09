@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NMT Focus — підготовка до НМТ",
+  title: "Vekto — підготовка до НМТ",
   description: "Тести, статистика та персональний темп підготовки до НМТ.",
   icons: {
     icon: "/favicon.svg",

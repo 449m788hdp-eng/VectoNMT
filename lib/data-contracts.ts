@@ -1,4 +1,4 @@
-export type SubjectCode = "ukrainian" | "math" | "history" | "english";
+export type SubjectCode = "ukrainian" | "mathematics" | "history" | "english" | "german" | "biology" | "geography";
 
 export interface StudentProfile {
   id: string;
@@ -23,5 +23,4 @@ export interface DashboardStats {
   weeklyProgress: number;
 }
 
-// UI працює на демо-даних. Ці контракти стануть межею для Supabase-запитів
-// на наступному етапі без перебудови компонентів кабінету.
+// Контракти профілю й результатів готові для наступного кроку авторизації.
