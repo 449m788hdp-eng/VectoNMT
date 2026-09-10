@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { getDatabase, kyivDate, noStore } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ function normalize(value: string) {
 }
 
 export async function POST(request: Request) {
-  const identity = await getChatGPTUser();
+  const identity = await getCurrentUser();
   if (!identity) return Response.json({ error: "Потрібно увійти" }, noStore(401));
   try {
     const payload = await request.json() as { attemptId?: string; answers?: Record<string, string> };

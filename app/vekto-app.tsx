@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 
-type Screen = "landing" | "auth" | "onboarding" | "app";
+type Screen = "landing" | "app";
 type View = "results" | "tests" | "home" | "plan" | "settings";
 
 type Profile = { displayName: string; targetScore: number; createdAt?: string };
@@ -66,11 +66,11 @@ function Brand() {
   return <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/[0.04]"><span className="size-2.5 rounded-full bg-[#c8ff38] shadow-[0_0_18px_#c8ff38]" /></span><span className="text-[15px] font-semibold tracking-[-0.02em]">VEKTO</span></div>;
 }
 
-function Landing({ onStart, onLogin }: { onStart: () => void; onLogin: () => void }) {
+function Landing({ onStart }: { onStart: () => void }) {
   return <main className="relative min-h-screen overflow-hidden bg-[#080a09] text-white">
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_73%_27%,rgba(200,255,56,0.10),transparent_26%),radial-gradient(circle_at_15%_80%,rgba(70,104,255,0.08),transparent_30%)]" />
     <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:72px_72px]" />
-    <header className="relative z-10 mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 sm:px-8 lg:px-12"><Brand /><Button variant="outline" onClick={onLogin} className="h-11 rounded-full border-white/15 bg-white/[0.03] px-5 text-white hover:bg-white/10 hover:text-white">Увійти</Button></header>
+    <header className="relative z-10 mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 sm:px-8 lg:px-12"><Brand /><span className="rounded-full border border-white/10 bg-white/[.03] px-4 py-2 text-sm text-white/42">Гостьовий режим</span></header>
     <section className="relative z-10 mx-auto grid min-h-[calc(100vh-82px)] max-w-[1400px] items-center gap-12 px-5 pb-12 pt-8 sm:px-8 lg:grid-cols-[1.05fr_.95fr] lg:px-12">
       <div className="max-w-[720px]"><div className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3.5 py-2 text-sm text-white/55"><span className="size-1.5 rounded-full bg-[#c8ff38]" /> Реальні завдання НМТ</div><h1 className="text-[clamp(3.4rem,7vw,7.3rem)] font-semibold leading-[0.88] tracking-[-0.075em]">Фокус на<br /><span className="text-[#c8ff38]">твої 200.</span></h1><p className="mt-8 max-w-xl text-lg leading-8 text-white/55 sm:text-xl">Тренуйся на справжніх завданнях, отримуй чесний результат і бач свій прогрес після кожного тесту.</p><Button size="lg" onClick={onStart} className="mt-10 h-14 rounded-full bg-[#c8ff38] px-7 text-base font-semibold text-[#10130b] hover:bg-[#d5ff65]">Почати підготовку <ArrowRight className="size-4" /></Button><div className="mt-14 grid max-w-xl grid-cols-3 border-t border-white/10 pt-7"><div><strong className="block text-2xl">7</strong><span className="text-sm text-white/36">предметів</span></div><div className="border-l border-white/10 pl-6"><strong className="block text-2xl">412</strong><span className="text-sm text-white/36">завдань</span></div><div className="border-l border-white/10 pl-6"><strong className="block text-2xl">24/7</strong><span className="text-sm text-white/36">доступ</span></div></div></div>
       <div className="relative mx-auto w-full max-w-[580px]"><div className="absolute -inset-10 rounded-full bg-[#c8ff38]/[0.055] blur-3xl" /><div className="relative rounded-[32px] border border-white/10 bg-[#101311]/90 p-6 shadow-[0_40px_120px_rgba(0,0,0,.65)]"><div className="flex items-center justify-between"><div><p className="text-sm text-white/38">Твоя статистика</p><p className="mt-1 text-2xl font-semibold">Починається з першої відповіді</p></div><Trophy className="size-5 text-[#c8ff38]" /></div><div className="mt-8 grid grid-cols-3 gap-3">{[["—", "середній бал"], ["0", "тестів"], ["1", "день серії"]].map(([value, label]) => <div key={label} className="rounded-[20px] border border-white/8 bg-black/25 p-4"><strong className="text-2xl">{value}</strong><span className="mt-8 block text-xs leading-5 text-white/35">{label}</span></div>)}</div><div className="mt-4 rounded-[22px] border border-[#c8ff38]/15 bg-[#c8ff38]/[0.055] p-5"><p className="text-sm text-[#c8ff38]">Без вигаданих цифр</p><p className="mt-2 leading-7 text-white/50">Кожен показник розраховується з твоїх завершених тестів і днів навчання.</p></div></div></div>
@@ -115,7 +115,7 @@ function ResultScreen({ result, onContinue }: { result: TestResult; onContinue: 
   return <main className="grid min-h-screen place-items-center bg-[#080a09] p-5 text-white"><div className="w-full max-w-lg rounded-[32px] border border-white/10 bg-[#111412] p-8 text-center"><span className="mx-auto grid size-16 place-items-center rounded-full bg-[#c8ff38]/10 text-[#c8ff38]"><Trophy className="size-7" /></span><p className="mt-7 text-sm text-white/38">Тренувальний бал</p><h1 className="mt-2 text-7xl font-semibold tracking-[-.07em] text-[#c8ff38]">{result.score}</h1><p className="mt-4 text-lg text-white/55">{result.correct} правильних із {result.total}</p><p className="mt-6 text-sm leading-6 text-white/32">Бал розраховано за твоїми відповідями за шкалою 100–200. Результат уже додано до статистики.</p><Button onClick={onContinue} className="mt-8 h-13 w-full rounded-full bg-white text-black hover:bg-white/85">До результатів <ArrowRight className="size-4" /></Button></div></main>;
 }
 
-function Dashboard({ data, view, setView, onStart, onRefresh, signOutPath }: { data: DashboardData; view: View; setView: (view: View) => void; onStart: (slug: string) => void; onRefresh: () => void; signOutPath: string }) {
+function Dashboard({ data, view, setView, onStart, onRefresh, signOutPath, signedIn }: { data: DashboardData; view: View; setView: (view: View) => void; onStart: (slug: string) => void; onRefresh: () => void; signOutPath: string; signedIn: boolean }) {
   const name = data.profile.displayName;
   const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const date = new Intl.DateTimeFormat("uk-UA", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
@@ -126,18 +126,18 @@ function Dashboard({ data, view, setView, onStart, onRefresh, signOutPath }: { d
     {view === "tests" && <TestsView stats={mergedStats} onStart={onStart} />}
     {view === "results" && <section><p className="text-sm font-medium text-[#c8ff38]">Твоя історія</p><h1 className="mt-2 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Усі результати</h1>{data.recentAttempts.length ? <div className="mt-8 space-y-3">{data.recentAttempts.map((attempt) => <article key={attempt.id} className="flex flex-col gap-4 rounded-[22px] border border-white/8 bg-white/[.025] p-5 sm:flex-row sm:items-center"><div className="grid size-11 place-items-center rounded-full bg-white/[.06]"><ClipboardCheck className="size-5 text-[#c8ff38]" /></div><div className="flex-1"><h2 className="font-medium">{attempt.subject_name}</h2><p className="mt-1 text-sm text-white/32">{new Intl.DateTimeFormat("uk-UA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(`${attempt.completed_at}Z`))}</p></div><div className="text-left sm:text-right"><strong className="text-2xl text-[#c8ff38]">{attempt.score}</strong><p className="text-sm text-white/32">{attempt.correct_answers}/{attempt.total_questions} правильно</p></div></article>)}</div> : <div className="mt-8 rounded-[28px] border border-dashed border-white/12 p-10 text-center"><BarChart3 className="mx-auto size-7 text-white/25" /><h2 className="mt-5 text-xl font-medium">Поки немає результатів</h2><p className="mt-2 text-white/35">Заверши перший тест — він з’явиться тут.</p><Button onClick={() => setView("tests")} className="mt-6 rounded-full bg-white px-5 text-black">Обрати тест</Button></div>}</section>}
     {view === "plan" && <section><p className="text-sm font-medium text-[#c8ff38]">Персональна рекомендація</p><h1 className="mt-2 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Мій план</h1><div className="mt-8 grid gap-4 lg:grid-cols-2"><article className="rounded-[28px] border border-white/8 bg-[#111412] p-7"><Target className="size-6 text-[#c8ff38]" /><h2 className="mt-7 text-2xl font-semibold">Ціль: {data.profile.targetScore}+</h2><p className="mt-3 leading-7 text-white/40">{weakest ? `Найбільший резерв зараз у предметі «${weakest.name}». Додай один короткий тест сьогодні.` : "Щоб скласти персональний план, Vekto потрібен хоча б один завершений тест."}</p>{weakest && <Button onClick={() => onStart(weakest.slug)} className="mt-7 rounded-full bg-[#c8ff38] px-5 text-black">Тренуватися</Button>}</article><article className="rounded-[28px] border border-white/8 bg-white/[.025] p-7"><p className="text-sm text-white/35">Принцип плану</p><div className="mt-6 space-y-5">{["Спочатку — предмет із найнижчою точністю", "Потім — повторення сильних тем", "Кожен результат одразу змінює рекомендацію"].map((text, index) => <div key={text} className="flex gap-4"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-white/[.06] text-sm text-white/45">{index + 1}</span><p className="pt-1 text-white/55">{text}</p></div>)}</div></article></div></section>}
-    {view === "settings" && <SettingsView profile={data.profile} signOutPath={signOutPath} onSaved={onRefresh} />}
+    {view === "settings" && <SettingsView profile={data.profile} signOutPath={signOutPath} signedIn={signedIn} onSaved={onRefresh} />}
   </div><nav className="fixed bottom-4 left-1/2 z-30 flex w-[calc(100%-24px)] max-w-[620px] -translate-x-1/2 items-center justify-between rounded-[24px] border border-white/10 bg-[#131614]/90 p-2 shadow-2xl backdrop-blur-xl" aria-label="Швидкий доступ">{navItems.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setView(id)} className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[17px] px-2 py-2.5 transition ${view === id ? "bg-white/[.09] text-white" : "text-white/35 hover:text-white"}`}><Icon className={`size-5 ${view === id ? "text-[#c8ff38]" : ""}`} /><span className="truncate text-[11px] sm:text-xs">{label}</span></button>)}</nav></main>;
 }
 
-function SettingsView({ profile, signOutPath, onSaved }: { profile: Profile; signOutPath: string; onSaved: () => void }) {
+function SettingsView({ profile, signOutPath, signedIn, onSaved }: { profile: Profile; signOutPath: string; signedIn: boolean; onSaved: () => void }) {
   const [name, setName] = useState(profile.displayName);
   const [target, setTarget] = useState(profile.targetScore);
   const [message, setMessage] = useState("");
-  return <section><p className="text-sm font-medium text-[#c8ff38]">Профіль</p><h1 className="mt-2 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Налаштування</h1><form className="mt-8 max-w-xl rounded-[28px] border border-white/8 bg-[#111412] p-6 sm:p-8" onSubmit={async (event) => { event.preventDefault(); setMessage("Зберігаю…"); const response = await fetch("/api/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: name, targetScore: target }) }); setMessage(response.ok ? "Збережено" : "Не вдалося зберегти"); if (response.ok) onSaved(); }}><label className="block"><span className="mb-2 block text-sm text-white/60">Ім’я</span><Input value={name} onChange={(event) => setName(event.target.value)} className="h-13 rounded-2xl border-white/10 bg-white/[.035] px-4 text-white" /></label><label className="mt-6 block"><span className="mb-3 block text-sm text-white/60">Бажаний бал: <strong className="text-[#c8ff38]">{target}</strong></span><input type="range" min="140" max="200" step="5" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="w-full accent-[#c8ff38]" /></label><div className="mt-7 flex items-center gap-4"><Button className="rounded-full bg-white px-6 text-black hover:bg-white/85">Зберегти</Button>{message && <span className="text-sm text-white/38">{message}</span>}</div></form><a href={signOutPath} target="_top" className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-red-300/70 hover:bg-red-400/10 hover:text-red-300"><LogOut className="size-4" /> Вийти з акаунта</a></section>;
+  return <section><p className="text-sm font-medium text-[#c8ff38]">Профіль</p><h1 className="mt-2 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">Налаштування</h1><form className="mt-8 max-w-xl rounded-[28px] border border-white/8 bg-[#111412] p-6 sm:p-8" onSubmit={async (event) => { event.preventDefault(); setMessage("Зберігаю…"); const response = await fetch("/api/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: name, targetScore: target }) }); setMessage(response.ok ? "Збережено" : "Не вдалося зберегти"); if (response.ok) onSaved(); }}><label className="block"><span className="mb-2 block text-sm text-white/60">Ім’я</span><Input value={name} onChange={(event) => setName(event.target.value)} className="h-13 rounded-2xl border-white/10 bg-white/[.035] px-4 text-white" /></label><label className="mt-6 block"><span className="mb-3 block text-sm text-white/60">Бажаний бал: <strong className="text-[#c8ff38]">{target}</strong></span><input type="range" min="140" max="200" step="5" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="w-full accent-[#c8ff38]" /></label><div className="mt-7 flex items-center gap-4"><Button className="rounded-full bg-white px-6 text-black hover:bg-white/85">Зберегти</Button>{message && <span className="text-sm text-white/38">{message}</span>}</div></form>{signedIn ? <a href={signOutPath} target="_top" className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-red-300/70 hover:bg-red-400/10 hover:text-red-300"><LogOut className="size-4" /> Вийти з акаунта</a> : <p className="mt-5 text-sm text-white/30">Зараз використовується тимчасовий гостьовий профіль на цьому пристрої.</p>}</section>;
 }
 
-export default function VektoApp({ initialIdentity, signInPath, signOutPath }: { initialIdentity: { userId: string; email: string } | null; signInPath: string; signOutPath: string }) {
+export default function VektoApp({ initialIdentity, signOutPath }: { initialIdentity: { userId: string; email: string } | null; signInPath: string; signOutPath: string }) {
   const [screen, setScreen] = useState<Screen>(initialIdentity ? "app" : "landing");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -147,16 +147,15 @@ export default function VektoApp({ initialIdentity, signInPath, signOutPath }: {
   const [loadingTest, setLoadingTest] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!initialIdentity) return;
     const response = await fetch("/api/dashboard", { cache: "no-store" });
-    if (response.status === 409) { setScreen("onboarding"); return; }
     if (response.ok) { const payload = await response.json() as DashboardData; setDashboard(payload); setProfile(payload.profile); setScreen("app"); }
-  }, [initialIdentity]);
+  }, []);
 
   useEffect(() => {
+    if (!initialIdentity) return;
     const task = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(task);
-  }, [refresh]);
+  }, [initialIdentity, refresh]);
 
   useEffect(() => {
     const modelContext = (document as unknown as { modelContext?: { registerTool?: (tool: unknown, options?: { signal?: AbortSignal }) => void | Promise<void> } }).modelContext;
@@ -167,17 +166,18 @@ export default function VektoApp({ initialIdentity, signInPath, signOutPath }: {
       title: "Відкрити розділ Vekto",
       description: "Відкрити у видимому інтерфейсі огляд, тести, результати, план або налаштування Vekto.",
       inputSchema: { type: "object", properties: { section: { type: "string", enum: ["home", "tests", "results", "plan", "settings"] } }, required: ["section"], additionalProperties: false },
-      annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute(input: unknown) {
+      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      async execute(input: unknown) {
         const section = (input as { section?: View })?.section;
         if (!section || !navItems.some((item) => item.id === section)) throw new Error("Невідомий розділ");
-        if (!initialIdentity) { setScreen("auth"); return { screen: "auth" }; }
+        if (!initialIdentity) await fetch("/api/session", { method: "POST" });
         setScreen("app"); setView(section);
+        await refresh();
         return { screen: "app", section };
       },
     }, { signal: lifecycle.signal })).catch(() => undefined);
     return () => lifecycle.abort();
-  }, [initialIdentity]);
+  }, [initialIdentity, refresh]);
 
   const startTest = async (slug: string) => {
     setLoadingTest(true);
@@ -187,14 +187,18 @@ export default function VektoApp({ initialIdentity, signInPath, signOutPath }: {
     if (response.ok) setActiveTest(payload);
   };
 
+  const beginGuest = async () => {
+    setScreen("app");
+    const response = await fetch("/api/session", { method: "POST" });
+    if (response.ok) await refresh();
+  };
+
   const completed = async (nextResult: TestResult) => { setActiveTest(null); setResult(nextResult); await refresh(); };
   const ready = useMemo(() => profile && dashboard, [profile, dashboard]);
 
   if (activeTest) return <TestPlayer test={activeTest} onClose={() => setActiveTest(null)} onCompleted={completed} />;
   if (result) return <ResultScreen result={result} onContinue={() => { setResult(null); setView("results"); }} />;
-  if (screen === "auth") return <AuthScreen signInPath={signInPath} onBack={() => setScreen("landing")} />;
-  if (screen === "onboarding" && initialIdentity) return <Onboarding email={initialIdentity.email} onReady={(nextProfile) => { setProfile(nextProfile); void refresh(); }} />;
-  if (screen === "app" && ready) return <><Dashboard data={dashboard} view={view} setView={setView} onStart={startTest} onRefresh={refresh} signOutPath={signOutPath} />{loadingTest && <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 text-white backdrop-blur-sm"><div className="rounded-full border border-white/10 bg-[#151815] px-5 py-3 text-sm">Готую реальні завдання…</div></div>}</>;
+  if (screen === "app" && ready) return <><Dashboard data={dashboard} view={view} setView={setView} onStart={startTest} onRefresh={refresh} signOutPath={signOutPath} signedIn={Boolean(initialIdentity)} />{loadingTest && <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 text-white backdrop-blur-sm"><div className="rounded-full border border-white/10 bg-[#151815] px-5 py-3 text-sm">Готую реальні завдання…</div></div>}</>;
   if (screen === "app") return <main className="grid min-h-screen place-items-center bg-[#080a09] text-white"><p className="text-white/40">Завантажую твій кабінет…</p></main>;
-  return <Landing onStart={() => setScreen(initialIdentity ? "app" : "auth")} onLogin={() => setScreen(initialIdentity ? "app" : "auth")} />;
+  return <Landing onStart={beginGuest} />;
 }

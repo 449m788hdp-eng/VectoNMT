@@ -1,11 +1,11 @@
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { ensureSubjectSeeded, subjectCatalog } from "@/lib/question-bank";
 import { getDatabase, noStore } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const identity = await getChatGPTUser();
+  const identity = await getCurrentUser();
   if (!identity) return Response.json({ error: "Потрібно увійти" }, noStore(401));
   try {
     const payload = await request.json() as { subject?: string; limit?: number };
@@ -32,4 +32,3 @@ export async function POST(request: Request) {
     return Response.json({ error: error instanceof Error ? error.message : "Не вдалося почати тест" }, noStore(500));
   }
 }
-

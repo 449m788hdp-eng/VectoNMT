@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { getDatabase, kyivDate, noStore } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ function dateOffset(days: number) {
 }
 
 export async function GET() {
-  const identity = await getChatGPTUser();
+  const identity = await getCurrentUser();
   if (!identity) return Response.json({ error: "Потрібно увійти" }, noStore(401));
   try {
     const db = getDatabase();
@@ -51,4 +51,3 @@ export async function GET() {
     return Response.json({ error: error instanceof Error ? error.message : "Не вдалося завантажити статистику" }, noStore(500));
   }
 }
-

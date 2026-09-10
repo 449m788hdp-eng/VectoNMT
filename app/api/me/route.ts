@@ -1,10 +1,10 @@
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getCurrentUser } from "@/lib/current-user";
 import { getDatabase, kyivDate, noStore } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const identity = await getChatGPTUser();
+  const identity = await getCurrentUser();
   if (!identity) return Response.json({ authenticated: false }, noStore(401));
   try {
     const db = getDatabase();
@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const identity = await getChatGPTUser();
+  const identity = await getCurrentUser();
   if (!identity) return Response.json({ error: "Потрібно увійти" }, noStore(401));
   try {
     const payload = await request.json() as { displayName?: string; targetScore?: number };
@@ -34,4 +34,3 @@ export async function POST(request: Request) {
     return Response.json({ error: error instanceof Error ? error.message : "Не вдалося зберегти профіль" }, noStore(500));
   }
 }
-
