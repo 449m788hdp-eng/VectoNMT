@@ -1,21 +1,29 @@
 import questionData from "@/data/nmt-questions.json";
+import practiceData from "@/data/vekto-practice-questions.json";
 
-export type QuestionRecord = (typeof questionData.questions)[number];
+export type QuestionRecord = (typeof questionData.questions)[number] | (typeof practiceData.questions)[number];
+
+export type ExamBlueprint = {
+  durationMinutes: number;
+  formats: Array<{ type: string; count: number; label: string }>;
+};
 
 export const subjectCatalog = new Map([
-  ["mathematics", { name: "Математика", examQuestionCount: 22, required: 1, position: 1 }],
-  ["ukrainian", { name: "Українська мова", examQuestionCount: 30, required: 1, position: 2 }],
-  ["english", { name: "Англійська мова", examQuestionCount: 32, required: 0, position: 3 }],
-  ["history", { name: "Історія України", examQuestionCount: 30, required: 1, position: 4 }],
-  ["german", { name: "Німецька мова", examQuestionCount: 32, required: 0, position: 5 }],
-  ["biology", { name: "Біологія", examQuestionCount: 30, required: 0, position: 6 }],
-  ["geography", { name: "Географія", examQuestionCount: 30, required: 0, position: 7 }],
+  ["mathematics", { name: "Математика", examQuestionCount: 22, required: 1, position: 1, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 15, label: "одна відповідь" }, { type: "matching", count: 3, label: "логічні пари" }, { type: "numeric", count: 4, label: "коротка відповідь" }] } satisfies ExamBlueprint }],
+  ["ukrainian", { name: "Українська мова", examQuestionCount: 30, required: 1, position: 2, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 25, label: "одна відповідь" }, { type: "matching", count: 5, label: "логічні пари" }] } satisfies ExamBlueprint }],
+  ["english", { name: "Англійська мова", examQuestionCount: 32, required: 0, position: 3, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 32, label: "читання та використання мови" }] } satisfies ExamBlueprint }],
+  ["history", { name: "Історія України", examQuestionCount: 30, required: 1, position: 4, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 20, label: "одна відповідь" }, { type: "matching", count: 4, label: "логічні пари" }, { type: "ordering", count: 3, label: "послідовність" }, { type: "multiple_choice", count: 3, label: "три із семи" }] } satisfies ExamBlueprint }],
+  ["german", { name: "Німецька мова", examQuestionCount: 32, required: 0, position: 5, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 32, label: "читання та використання мови" }] } satisfies ExamBlueprint }],
+  ["biology", { name: "Біологія", examQuestionCount: 30, required: 0, position: 6, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 24, label: "одна відповідь" }, { type: "matching", count: 4, label: "логічні пари" }, { type: "type_6", count: 2, label: "три групи відповідей" }] } satisfies ExamBlueprint }],
+  ["geography", { name: "Географія", examQuestionCount: 30, required: 0, position: 7, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 20, label: "одна відповідь" }, { type: "numeric", count: 4, label: "коротка відповідь" }, { type: "multiple_choice", count: 6, label: "три із семи" }] } satisfies ExamBlueprint }],
 ]);
+
+export const allQuestionRecords: QuestionRecord[] = [...questionData.questions, ...practiceData.questions] as QuestionRecord[];
 
 export async function ensureSubjectSeeded(db: D1Database, subject: string) {
   const catalog = subjectCatalog.get(subject);
   if (!catalog) return false;
-  const records = questionData.questions.filter((record) => record.subject === subject);
+  const records = allQuestionRecords.filter((record) => record.subject === subject);
   const existing = await db.prepare("SELECT COUNT(*) AS count FROM questions WHERE subject_slug = ?1").bind(subject).first<{ count: number }>();
   if ((existing?.count ?? 0) === records.length) return true;
 
@@ -35,4 +43,3 @@ export async function ensureSubjectSeeded(db: D1Database, subject: string) {
   for (let offset = 0; offset < questionStatements.length; offset += 50) await db.batch(questionStatements.slice(offset, offset + 50));
   return true;
 }
-
