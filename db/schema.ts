@@ -1,4 +1,5 @@
-import { integer, sqliteTable, text, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { integer, sqliteTable, text, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
 
 export const subjects = sqliteTable("subjects", {
   slug: text("slug").primaryKey(),
@@ -36,4 +37,51 @@ export const questions = sqliteTable("questions", {
 }, (table) => ({
   subjectTopic: index("questions_subject_topic").on(table.subjectSlug, table.topicId),
   subjectSessionPosition: index("questions_subject_session_position").on(table.subjectSlug, table.session, table.position),
+}));
+
+export const profiles = sqliteTable("profiles", {
+  userId: text("user_id").primaryKey(),
+  email: text("email").notNull(),
+  displayName: text("display_name").notNull(),
+  targetScore: integer("target_score").notNull().default(180),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const testAttempts = sqliteTable("test_attempts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => profiles.userId),
+  subjectSlug: text("subject_slug").notNull().references(() => subjects.slug),
+  startedAt: text("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  completedAt: text("completed_at"),
+  totalQuestions: integer("total_questions").notNull(),
+  correctAnswers: integer("correct_answers").notNull().default(0),
+  score: integer("score"),
+}, (table) => ({
+  userCompleted: index("idx_test_attempts_user_completed").on(table.userId, table.completedAt),
+  userSubject: index("idx_test_attempts_user_subject").on(table.userId, table.subjectSlug),
+}));
+
+export const attemptQuestions = sqliteTable("attempt_questions", {
+  attemptId: text("attempt_id").notNull().references(() => testAttempts.id),
+  questionId: text("question_id").notNull().references(() => questions.id),
+  position: integer("position").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.attemptId, table.questionId] }),
+}));
+
+export const attemptAnswers = sqliteTable("attempt_answers", {
+  attemptId: text("attempt_id").notNull().references(() => testAttempts.id),
+  questionId: text("question_id").notNull().references(() => questions.id),
+  selectedAnswer: text("selected_answer").notNull(),
+  isCorrect: integer("is_correct").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.attemptId, table.questionId] }),
+}));
+
+export const studyDays = sqliteTable("study_days", {
+  userId: text("user_id").notNull().references(() => profiles.userId),
+  studyDate: text("study_date").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.userId, table.studyDate] }),
 }));
