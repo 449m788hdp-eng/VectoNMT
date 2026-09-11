@@ -9,6 +9,7 @@ export type TopicSection = { name: string; topics: string[] };
 export const QUESTION_BANK_VERSION = taxonomyData.version;
 export const QUESTION_BANK_SIZE = questionData.questions.length + practiceData.questions.length;
 export const OFFICIAL_QUESTION_COUNT = questionData.questions.length;
+export const MIN_TOPIC_QUESTIONS = 10;
 
 export const subjectCatalog = new Map([
   ["mathematics", { name: "Математика", examQuestionCount: 22, required: 1, position: 1, blueprint: { durationMinutes: 60, formats: [{ type: "single_choice", count: 15, label: "15 × одна відповідь" }, { type: "matching", count: 3, label: "3 × логічні пари" }, { type: "numeric", count: 4, label: "4 × коротка відповідь" }] } satisfies ExamBlueprint }],
@@ -26,6 +27,7 @@ export const allQuestionRecords: QuestionRecord[] = [...questionData.questions, 
 export const OUTSIDE_PROGRAM = "Поза програмою НМТ-2026";
 
 const normalize = (value: string) => value.replaceAll("–", "-").replaceAll("—", "-").replaceAll("у складі", "в складі").replaceAll(/\s+/g, " ").trim().toLowerCase();
+const practiceSourceTopics = new Set(practiceData.questions.map((question) => normalize(question.topic)));
 
 function topic(subject: string, sectionIndex: number, topicIndex: number) {
   const section = topicTaxonomy[subject][sectionIndex];
@@ -33,8 +35,13 @@ function topic(subject: string, sectionIndex: number, topicIndex: number) {
 }
 
 export function classifyQuestion(subject: string, sourceTopic: string, prompt: string) {
-  const text = normalize(`${sourceTopic} ${prompt}`);
   const promptText = normalize(prompt);
+  // Practice records carry a broad programme section in `topic`. Using that label
+  // for keyword matching used to push an entire section into the first matching
+  // narrow topic (for example every phonetics task into “Наголос”). For authored
+  // practice tasks the prompt is the source of truth; official records retain the
+  // source label because it is already granular and useful for classification.
+  const text = practiceSourceTopics.has(normalize(sourceTopic)) ? promptText : normalize(`${sourceTopic} ${prompt}`);
   if (subject === "history") {
     const entries = topicTaxonomy.history.flatMap((section) => section.topics.map((topicName) => ({ sectionName: section.name, topicName })));
     const source = normalize(sourceTopic);

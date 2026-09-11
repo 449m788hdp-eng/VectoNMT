@@ -14,7 +14,7 @@ export async function GET() {
   if (!identity) return Response.json({ error: "Потрібно увійти" }, noStore(401));
   try {
     const db = getDatabase();
-    const profile = await db.prepare("SELECT display_name, target_score, created_at FROM profiles WHERE user_id = ?1").bind(identity.userId).first<{ display_name: string; target_score: number; created_at: string }>();
+    const profile = await db.prepare("SELECT display_name, first_name, last_name, grade, fourth_subject, subject_targets_json, target_score, created_at FROM profiles WHERE user_id = ?1").bind(identity.userId).first<{ display_name: string; first_name: string; last_name: string; grade: string; fourth_subject: string; subject_targets_json: string; target_score: number; created_at: string }>();
     if (!profile) return Response.json({ needsOnboarding: true }, noStore(409));
     await db.prepare("INSERT OR IGNORE INTO study_days (user_id, study_date) VALUES (?1, ?2)").bind(identity.userId, kyivDate()).run();
 
@@ -41,7 +41,16 @@ export async function GET() {
     });
 
     return Response.json({
-      profile: { displayName: profile.display_name, targetScore: profile.target_score, createdAt: profile.created_at },
+      profile: {
+        displayName: profile.display_name,
+        firstName: profile.first_name || profile.display_name.split(/\s+/)[0] || "Учень",
+        lastName: profile.last_name || profile.display_name.split(/\s+/).slice(1).join(" "),
+        grade: profile.grade || "11",
+        fourthSubject: profile.fourth_subject || "english",
+        subjectTargets: (() => { try { return JSON.parse(profile.subject_targets_json || "{}"); } catch { return {}; } })(),
+        targetScore: profile.target_score,
+        createdAt: profile.created_at,
+      },
       stats: { completedTests: summary?.completed ?? 0, averageScore: summary?.average_score, streak },
       subjects: subjectRows.results,
       weeklyActivity,

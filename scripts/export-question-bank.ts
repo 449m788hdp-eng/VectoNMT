@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
-import { allQuestionRecords, classifyQuestion, OFFICIAL_QUESTION_COUNT, QUESTION_BANK_SIZE, QUESTION_BANK_VERSION, subjectCatalog } from "../lib/question-bank";
+import { allQuestionRecords, classifyQuestion, MIN_TOPIC_QUESTIONS, OFFICIAL_QUESTION_COUNT, QUESTION_BANK_SIZE, QUESTION_BANK_VERSION, subjectCatalog } from "../lib/question-bank";
 
 const root = resolve(import.meta.dirname, "..");
 const sqlitePath = resolve(root, "public/downloads/vekto-question-bank.sqlite");
@@ -48,12 +48,13 @@ const manifest = {
   questionCount: QUESTION_BANK_SIZE,
   officialQuestionCount: OFFICIAL_QUESTION_COUNT,
   runtimeAI: false,
+  minimumTrainingTopicSize: MIN_TOPIC_QUESTIONS,
   subjects: [...subjectCatalog.entries()].map(([slug, subject]) => ({
     slug,
     name: subject.name,
     examQuestionCount: subject.examQuestionCount,
     bankQuestionCount: classified.filter((record) => record.subject === slug).length,
-    topicCount: new Set(classified.filter((record) => record.subject === slug && record.sectionName !== "Поза програмою НМТ-2026").map((record) => record.topicName)).size,
+    topicCount: new Set(classified.filter((record) => record.subject === slug && record.sectionName !== "Поза програмою НМТ-2026" && classified.filter((candidate) => candidate.subject === slug && candidate.topicName === record.topicName).length >= MIN_TOPIC_QUESTIONS).map((record) => record.topicName)).size,
   })),
 };
 writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);

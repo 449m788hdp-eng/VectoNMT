@@ -18,7 +18,7 @@ export async function POST() {
     const suggestedName = identity?.fullName?.trim() || "Учень";
     const db = getDatabase();
     await db.batch([
-      db.prepare("INSERT OR IGNORE INTO profiles (user_id, email, display_name, target_score) VALUES (?1, ?2, ?3, 180)").bind(userId, email, suggestedName),
+      db.prepare("INSERT OR IGNORE INTO profiles (user_id, email, display_name, first_name, last_name, grade, fourth_subject, subject_targets_json, target_score) VALUES (?1, ?2, ?3, ?4, '', '11', 'english', ?5, 180)").bind(userId, email, suggestedName, suggestedName.split(/\s+/)[0] || "Учень", JSON.stringify({ mathematics: 180, ukrainian: 180, english: 180, history: 180, german: 180, biology: 180, geography: 180 })),
       db.prepare("INSERT OR IGNORE INTO study_days (user_id, study_date) VALUES (?1, ?2)").bind(userId, kyivDate()),
     ]);
     return Response.json({ ready: true, isGuest: !identity }, noStore());
@@ -26,4 +26,3 @@ export async function POST() {
     return Response.json({ error: error instanceof Error ? error.message : "Не вдалося створити профіль" }, noStore(500));
   }
 }
-

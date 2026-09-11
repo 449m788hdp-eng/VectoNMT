@@ -1,24 +1,25 @@
 {
   "name": "Vekto NMT question bank",
-  "version": 3,
+  "version": 4,
   "verifiedFor": "НМТ-2026",
   "questionCount": 2512,
   "officialQuestionCount": 412,
   "runtimeAI": false,
+  "minimumTrainingTopicSize": 10,
   "subjects": [
     {
       "slug": "mathematics",
       "name": "Математика",
       "examQuestionCount": 22,
       "bankQuestionCount": 344,
-      "topicCount": 20
+      "topicCount": 6
     },
     {
       "slug": "ukrainian",
       "name": "Українська мова",
       "examQuestionCount": 30,
       "bankQuestionCount": 360,
-      "topicCount": 31
+      "topicCount": 11
     },
     {
       "slug": "english",
@@ -39,21 +40,21 @@
       "name": "Німецька мова",
       "examQuestionCount": 32,
       "bankQuestionCount": 364,
-      "topicCount": 9
+      "topicCount": 8
     },
     {
       "slug": "biology",
       "name": "Біологія",
       "examQuestionCount": 30,
       "bankQuestionCount": 360,
-      "topicCount": 24
+      "topicCount": 16
     },
     {
       "slug": "geography",
       "name": "Географія",
       "examQuestionCount": 30,
       "bankQuestionCount": 360,
-      "topicCount": 34
+      "topicCount": 18
     }
   ]
 }
