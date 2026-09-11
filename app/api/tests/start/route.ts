@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/current-user";
-import { ensureSubjectSeeded, officialTopicSections, subjectCatalog } from "@/lib/question-bank";
+import { ensureSubjectSeeded, OUTSIDE_PROGRAM, subjectCatalog } from "@/lib/question-bank";
 import { getDatabase, noStore } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
@@ -9,19 +9,19 @@ type QuestionRow = { id: string; topic: string; prompt: string; question_type: s
 async function randomQuestions(db: D1Database, subject: string, type: string, limit: number) {
   return db.prepare(`SELECT q.id, t.name AS topic, q.prompt, q.question_type, q.options_json, q.images_json, q.attribution
     FROM questions q JOIN topics t ON t.id=q.topic_id
-    WHERE q.subject_slug=?1 AND q.question_type=?2 AND t.name!='Поза програмою НМТ-2026' ${type === "single_choice" ? "AND q.options_json!='[]'" : ""}
-    ORDER BY RANDOM() LIMIT ?3`).bind(subject, type, limit).all<QuestionRow>();
+    WHERE q.subject_slug=?1 AND q.question_type=?2 AND t.section_name!=?3 ${type === "single_choice" ? "AND q.options_json!='[]'" : ""}
+    ORDER BY RANDOM() LIMIT ?4`).bind(subject, type, OUTSIDE_PROGRAM, limit).all<QuestionRow>();
 }
 
 async function languageMock(db: D1Database, subject: string) {
   const reading = await db.prepare(`SELECT q.id, t.name AS topic, q.prompt, q.question_type, q.options_json, q.images_json, q.attribution
     FROM questions q JOIN topics t ON t.id=q.topic_id
-    WHERE q.subject_slug=?1 AND q.question_type='single_choice' AND t.name LIKE 'Читання%'
+    WHERE q.subject_slug=?1 AND q.question_type='single_choice' AND t.section_name IN ('Reading', 'Lesen')
     ORDER BY RANDOM() LIMIT 16`).bind(subject).all<QuestionRow>();
   const language = await db.prepare(`SELECT q.id, t.name AS topic, q.prompt, q.question_type, q.options_json, q.images_json, q.attribution
     FROM questions q JOIN topics t ON t.id=q.topic_id
-    WHERE q.subject_slug=?1 AND q.question_type='single_choice' AND t.name NOT LIKE 'Читання%'
-    ORDER BY RANDOM() LIMIT 16`).bind(subject).all<QuestionRow>();
+    WHERE q.subject_slug=?1 AND q.question_type='single_choice' AND t.section_name NOT IN ('Reading', 'Lesen') AND t.section_name!=?2
+    ORDER BY RANDOM() LIMIT 16`).bind(subject, OUTSIDE_PROGRAM).all<QuestionRow>();
   return [...reading.results, ...language.results];
 }
 
@@ -50,8 +50,8 @@ export async function POST(request: Request) {
     let topicName: string | null = null;
     if (mode === "topic") {
       const topicId = Number(payload.topicId);
-      const topic = await db.prepare("SELECT id, name FROM topics WHERE id=?1 AND subject_slug=?2").bind(topicId, subject).first<{ id: number; name: string }>();
-      if (!topic || !(officialTopicSections[subject] ?? []).includes(topic.name)) return Response.json({ error: "Невідома тема" }, noStore(400));
+      const topic = await db.prepare("SELECT id, name, section_name FROM topics WHERE id=?1 AND subject_slug=?2").bind(topicId, subject).first<{ id: number; name: string; section_name: string }>();
+      if (!topic || topic.section_name === OUTSIDE_PROGRAM) return Response.json({ error: "Невідома тема" }, noStore(400));
       topicName = topic.name;
       questions = (await topicQuestions(db, subject, topic.id, limit)).results;
     } else if (mode === "quick") {

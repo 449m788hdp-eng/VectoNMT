@@ -7,12 +7,15 @@ export const subjects = sqliteTable("subjects", {
   examQuestionCount: integer("exam_question_count").notNull(),
   required: integer("required").notNull().default(0),
   position: integer("position").notNull(),
+  bankVersion: integer("bank_version").notNull().default(0),
 });
 
 export const topics = sqliteTable("topics", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   subjectSlug: text("subject_slug").notNull().references(() => subjects.slug),
   name: text("name").notNull(),
+  sectionName: text("section_name").notNull().default(""),
+  position: integer("position").notNull().default(0),
 }, (table) => ({
   subjectName: uniqueIndex("topics_subject_name").on(table.subjectSlug, table.name),
 }));
