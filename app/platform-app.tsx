@@ -664,7 +664,9 @@ export default function PlatformApp({
                         })
                       }
                     >
-                      {busy ? "Формуємо тест…" : "Почати тренування"}
+                      {busy
+                        ? "Завантажуємо завдання з бази…"
+                        : "Почати тренування"}
                       <Play size={17} />
                     </Button>
                   </section>
@@ -834,7 +836,9 @@ export default function PlatformApp({
                         })
                       }
                     >
-                      {busy ? "Готуємо іспит…" : "Розпочати симуляцію"}
+                      {busy
+                        ? "Завантажуємо варіант із бази…"
+                        : "Розпочати симуляцію"}
                       <ArrowRight size={18} />
                     </Button>
                     <a
