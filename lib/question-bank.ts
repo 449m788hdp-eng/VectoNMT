@@ -44,8 +44,11 @@ export function classifyQuestion(subject: string, sourceTopic: string, prompt: s
   const text = practiceSourceTopics.has(normalize(sourceTopic)) ? promptText : normalize(`${sourceTopic} ${prompt}`);
   if (subject === "history") {
     const entries = topicTaxonomy.history.flatMap((section) => section.topics.map((topicName) => ({ sectionName: section.name, topicName })));
-    const source = normalize(sourceTopic);
-    const match = entries.find((entry) => source.includes(normalize(entry.topicName)) || normalize(entry.topicName).includes(source));
+    const historyName = (value:string) => normalize(value).replaceAll('в кінці','наприкінці').replaceAll(/\s*-\s*/g,'-').replaceAll('наприкінці xvii-першій','наприкінці xvii-у першій').replaceAll(/\.$/g,'');
+    const source = historyName(sourceTopic);
+    const matches = entries.filter((entry) => source.includes(historyName(entry.topicName)) || historyName(entry.topicName).includes(source));
+    if(matches.length>1)return {sectionName:'Узагальнення',topicName:'Міжтематичні завдання з історії України'};
+    const match = matches[0];
     return match ?? { sectionName: OUTSIDE_PROGRAM, topicName: OUTSIDE_PROGRAM };
   }
   if (subject === "ukrainian") {
@@ -91,6 +94,24 @@ export function classifyQuestion(subject: string, sourceTopic: string, prompt: s
     return topic(subject, 6, 0);
   }
   if (subject === "mathematics") {
+    // Constrain classification to the source domain first. A coordinate system
+    // is not an algebraic system; a pyramid's triangular base is not planimetry.
+    const source = normalize(sourceTopic);
+    if (/стереометр/.test(source)) {
+      if (/координат/.test(promptText)) return topic(subject,5,3);
+      if (/площин|паралельних прям/.test(promptText) && !/обчисліть площу/.test(promptText)) return topic(subject,5,0);
+      if (/призм|пірамід|куб|многогран/.test(promptText)) return topic(subject,5,1);
+      return topic(subject,5,2);
+    }
+    if (/планіметр/.test(source)) {
+      if (/трапец|ромб|паралелограм|чотирикут|прямокутник/.test(promptText)) return topic(subject,4,2);
+      if (/трикут/.test(promptText)) return topic(subject,4,1);
+      if (/коло|круг/.test(promptText)) return topic(subject,4,3);
+      return topic(subject,4,4);
+    }
+    if (/ймовірність випадкової/.test(source)||/імовірність|ймовірність/.test(promptText)) return topic(subject,3,1);
+    if (/елементи комбінаторики/.test(source)&&/діаграм|графік/.test(promptText)) return topic(subject,3,2);
+    if (/%|відсот/.test(promptText)) return topic(subject,0,1);
     if (/текстов.*задач/.test(text)) return topic(subject, 0, 6);
     if (/відсот|пропорц|масштаб/.test(text)) return topic(subject, 0, 1);
     if (/раціональн.*вираз/.test(text)) return topic(subject, 0, 2);
@@ -261,7 +282,7 @@ export async function ensureSubjectSeeded(db: D1Database, subject: string) {
   const records = allQuestionRecords.filter((record) => record.subject === subject);
   const state = await db.prepare("SELECT bank_version FROM subjects WHERE slug=?1").bind(subject).first<{ bank_version: number }>();
   const count = await db.prepare("SELECT COUNT(*) AS count FROM questions WHERE subject_slug=?1").bind(subject).first<{ count: number }>();
-  if (state?.bank_version === QUESTION_BANK_VERSION && (count?.count ?? 0) === records.length) {
+  if ((state?.bank_version ?? 0) >= 5 || (state?.bank_version === QUESTION_BANK_VERSION && (count?.count ?? 0) === records.length)) {
     preparedSubjects.add(subject);
     return true;
   }

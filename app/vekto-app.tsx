@@ -117,7 +117,7 @@ function TestsView({ stats, onStart }: { stats: SubjectStat[]; onStart: (slug: s
     const controller = new AbortController();
     fetch(`/api/topics?subject=${selectedSlug}`, { cache: "no-store", signal: controller.signal })
       .then((response) => response.json())
-      .then((payload) => setCatalog(payload))
+      .then((payload) => setCatalog(payload as TopicPayload))
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [selectedSlug]);
@@ -195,14 +195,14 @@ function TestPlayer({ test, onClose, onCompleted }: { test: ActiveTest; onClose:
   const revealAnswer = async () => {
     setRevealing(true); setError("");
     const response = await fetch("/api/tests/reveal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attemptId: test.attemptId, questionId: question.id, selectedAnswer: selected }) });
-    const payload = await response.json();
+    const payload = await response.json() as Reveal & { error?: string };
     setRevealing(false);
     if (response.ok) setReveals((current) => ({ ...current, [question.id]: payload })); else setError(payload.error ?? "Не вдалося перевірити відповідь");
   };
   const finish = async () => {
     setSending(true); setError("");
     const response = await fetch("/api/tests/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attemptId: test.attemptId, answers }) });
-    const payload = await response.json();
+    const payload = await response.json() as TestResult & { error?: string };
     setSending(false);
     if (response.ok) onCompleted(payload); else setError(payload.error ?? "Не вдалося завершити тест");
   };
@@ -227,7 +227,7 @@ function ResultScreen({ result, onContinue }: { result: TestResult; onContinue: 
   return <main className="grid min-h-screen place-items-center bg-[#080a09] p-5 text-white"><div className="w-full max-w-lg rounded-[30px] border border-white/10 bg-[#111412] p-8 text-center"><span className="mx-auto grid size-16 place-items-center border border-[#c8ff38]/20 bg-[#c8ff38]/10 text-[#c8ff38]"><Trophy className="size-7" /></span><p className="mt-7 text-sm text-white/38">{official ? "Результат за таблицею НМТ-2026" : "Тренувальний індекс"}</p><h1 className="mt-2 text-7xl font-semibold tracking-[-.07em] text-[#c8ff38]">{result.score ?? "—"}</h1>{official && !result.passed && <p className="mt-3 font-medium text-amber-200">Пороговий бал не подолано</p>}<p className="mt-4 text-lg text-white/55">{result.rawScore} тестових балів із {result.rawMax}</p><p className="mt-1 text-sm text-white/35">повністю виконано {result.correct} із {result.total} завдань</p><p className="mt-6 text-sm leading-6 text-white/32">{official ? "Переведення 100–200 виконано за чинною таблицею МОН для НМТ-2026. Часткові бали нараховано за офіційними схемами УЦОЯО." : "Для тренування окремої теми показано індекс 100–200; офіційна таблиця застосовується лише до повного предметного тесту."}</p><Button onClick={onContinue} className="mt-8 h-13 w-full rounded-full bg-white text-black hover:bg-[#c8ff38]">До результатів <ArrowRight className="size-4" /></Button></div></main>;
 }
 
-function SettingsView({ profile, signOutPath, signedIn, onSaved }: { profile: Profile; signOutPath: string; signedIn: boolean; onSaved: () => void }) {
+export function SettingsView({ profile, signOutPath, signedIn, onSaved }: { profile: Profile; signOutPath: string; signedIn: boolean; onSaved: () => void }) {
   const [firstName, setFirstName] = useState(profile.firstName || profile.displayName.split(/\s+/)[0] || "");
   const [lastName, setLastName] = useState(profile.lastName || profile.displayName.split(/\s+/).slice(1).join(" "));
   const [grade, setGrade] = useState(profile.grade || "11");
@@ -243,7 +243,7 @@ function SettingsView({ profile, signOutPath, signedIn, onSaved }: { profile: Pr
       event.preventDefault();
       setMessage("Зберігаю…");
       const response = await fetch("/api/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ firstName, lastName, grade, fourthSubject, subjectTargets: targets }) });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await response.json().catch(() => ({})) as { error?: string };
       setMessage(response.ok ? "Збережено" : payload.error ?? "Не вдалося зберегти");
       if (response.ok) onSaved();
     }}>
@@ -313,7 +313,7 @@ export default function VektoApp({ initialIdentity, signOutPath }: { initialIden
   const startTest = async (slug: string, mode: "quick" | "full" | "topic" = "quick", topicId?: number) => {
     setLoadingTest(true); setStartError("");
     const response = await fetch("/api/tests/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subject: slug, mode, topicId, limit: 10 }) });
-    const payload = await response.json();
+    const payload = await response.json() as ActiveTest & { error?: string };
     setLoadingTest(false);
     if (response.ok) setActiveTest(payload); else setStartError(payload.error ?? "Не вдалося сформувати тест");
   };
@@ -323,7 +323,7 @@ export default function VektoApp({ initialIdentity, signOutPath }: { initialIden
 
   if (activeTest) return <TestPlayer test={activeTest} onClose={() => setActiveTest(null)} onCompleted={completed} />;
   if (result) return <ResultScreen result={result} onContinue={() => { setResult(null); setView("results"); }} />;
-  if (screen === "app" && ready) return <><Dashboard data={dashboard} view={view} setView={setView} onStart={startTest} onRefresh={refresh} signOutPath={signOutPath} signedIn={Boolean(initialIdentity)} />{loadingTest && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 text-white backdrop-blur-sm"><div className="border border-white/10 bg-[#151815] px-5 py-3 text-sm"><span className="mr-3 inline-block size-2 animate-pulse bg-[#c8ff38]" />Вибираю завдання з бази…</div></div>}{startError && <button onClick={() => setStartError("")} className="fixed bottom-28 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 border border-red-400/25 bg-[#211313] px-5 py-3 text-sm text-red-200 shadow-2xl">{startError}<X className="size-4" /></button>}</>;
+if (screen === "app" && ready) return <><Dashboard data={ready} view={view} setView={setView} onStart={startTest} onRefresh={refresh} signOutPath={signOutPath} signedIn={Boolean(initialIdentity)} />{loadingTest && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 text-white backdrop-blur-sm"><div className="border border-white/10 bg-[#151815] px-5 py-3 text-sm"><span className="mr-3 inline-block size-2 animate-pulse bg-[#c8ff38]" />Вибираю завдання з бази…</div></div>}{startError && <button onClick={() => setStartError("")} className="fixed bottom-28 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 border border-red-400/25 bg-[#211313] px-5 py-3 text-sm text-red-200 shadow-2xl">{startError}<X className="size-4" /></button>}</>;
   if (screen === "app") return <main className="grid min-h-screen place-items-center bg-[#080a09] text-white"><p className="text-white/40">Завантажую кабінет…</p></main>;
   return <Landing onStart={beginGuest} />;
 }

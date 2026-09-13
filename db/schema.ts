@@ -37,8 +37,13 @@ export const questions = sqliteTable("questions", {
   sourceUrl: text("source_url").notNull(),
   officialPdfUrl: text("official_pdf_url").notNull(),
   attribution: text("attribution").notNull(),
+  canonicalKey: text("canonical_key").notNull().default(""),
+  active: integer("active").notNull().default(1),
+  sourceKind: text("source_kind").notNull().default("practice"),
+  examFormat: text("exam_format").notNull().default("single_choice"),
 }, (table) => ({
   subjectTopic: index("questions_subject_topic").on(table.subjectSlug, table.topicId),
+  eligible: index("questions_eligible").on(table.subjectSlug, table.active, table.examFormat),
   subjectSessionPosition: index("questions_subject_session_position").on(table.subjectSlug, table.session, table.position),
 }));
 
@@ -93,3 +98,41 @@ export const studyDays = sqliteTable("study_days", {
 }, (table) => ({
   pk: primaryKey({ columns: [table.userId, table.studyDate] }),
 }));
+
+export const examConfigs = sqliteTable("exam_configs", {
+  subjectSlug: text("subject_slug").primaryKey().references(() => subjects.slug),
+  configJson: text("config_json").notNull(),
+  scaleJson: text("scale_json").notNull(),
+  year: integer("year").notNull().default(2026),
+});
+export const learningSessions = sqliteTable("learning_sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => profiles.userId),
+  mode: text("mode").notNull(),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("active"),
+  stage: integer("stage").notNull().default(1),
+  currentIndex: integer("current_index").notNull().default(0),
+  deadline: integer("deadline"),
+  breakUntil: integer("break_until"),
+  configJson: text("config_json").notNull(),
+  resultJson: text("result_json"),
+  revision: integer("revision").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  completedAt: text("completed_at"),
+}, (table) => ({ userStatus: index("learning_sessions_user_status").on(table.userId, table.status), oneActive: uniqueIndex("learning_sessions_one_active").on(table.userId).where(sql`status != 'completed'`) }));
+export const sessionItems = sqliteTable("session_items", {
+  sessionId: text("session_id").notNull().references(() => learningSessions.id),
+  questionId: text("question_id").notNull().references(() => questions.id),
+  subjectSlug: text("subject_slug").notNull(),
+  topicId: integer("topic_id").notNull(),
+  canonicalKey: text("canonical_key").notNull(),
+  stage: integer("stage").notNull(),
+  position: integer("position").notNull(),
+  snapshotJson: text("snapshot_json").notNull(),
+  answer: text("answer").notNull().default(""),
+  flagged: integer("flagged").notNull().default(0),
+  revealed: integer("revealed").notNull().default(0),
+  points: integer("points"),
+  maxPoints: integer("max_points").notNull(),
+}, (table) => ({ pk: primaryKey({columns:[table.sessionId, table.questionId]}), seen: index("session_items_canonical").on(table.canonicalKey), topic: index("session_items_topic").on(table.topicId) }));

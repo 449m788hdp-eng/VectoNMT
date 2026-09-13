@@ -29,6 +29,20 @@
       "when": 1789160595072,
       "tag": "0003_tricky_frank_castle",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789243673367,
+      "tag": "0004_fair_deathbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789244762120,
+      "tag": "0005_greedy_human_fly",
+      "breakpoints": true
     }
   ]
 }

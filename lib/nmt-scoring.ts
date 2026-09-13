@@ -1,10 +1,9 @@
-import { subjectCatalog } from "@/lib/question-bank";
 
 const markerMap: Record<string, string> = { "а": "a", "б": "b", "в": "c", "г": "d", "д": "e", "е": "f", "ж": "g", "з": "h" };
 
 export function normalizeAnswer(value: string) {
   const clean = value.trim().toLowerCase();
-  return markerMap[clean] ?? clean;
+  return clean.replace(/[абвгдежз]/g, (letter) => markerMap[letter] ?? letter);
 }
 
 export function normalizedParts(value: string) {
@@ -12,23 +11,33 @@ export function normalizedParts(value: string) {
 }
 
 export function pointsFor(type: string, selected: string, answer: string) {
-  if (type === "numeric") return { earned: normalizeAnswer(selected).replace(",", ".") === normalizeAnswer(answer).replace(",", ".") ? 2 : 0, max: 2 };
-  if (type === "matching" || type === "type_6") {
+  if (type === "numeric") {
+    const value = selected.trim().replace(",", ".");
+    const expected = answer.trim().replace(",", ".");
+    return { earned: /^[-+]?\d+(\.\d+)?$/.test(value) && Number(value) === Number(expected) ? 2 : 0, max: 2 };
+  }
+  if (type === "type_6") {
+    const actual = selected.split(";").map(normalizeAnswer);
+    const expected = answer.split(";").map(normalizeAnswer);
+    return { earned: actual.length <= expected.length ? expected.filter((part, index) => part === actual[index]).length : 0, max: expected.length };
+  }
+  if (type === "matching") {
     const actual = new Set(normalizedParts(selected));
     const expected = normalizedParts(answer);
-    return { earned: expected.filter((part) => actual.has(part)).length, max: expected.length };
+    const valid = actual.size <= expected.length && new Set([...actual].map((part) => part[0])).size === actual.size;
+    return { earned: valid ? expected.filter((part) => actual.has(part)).length : 0, max: expected.length };
   }
   if (type === "ordering") {
-    const actual = normalizedParts(selected);
+    const actual = selected.split(";").map(normalizeAnswer);
     const expected = normalizedParts(answer);
     if (actual.length === expected.length && expected.every((part, index) => actual[index] === part)) return { earned: 3, max: 3 };
-    const earned = Number(actual[0] === expected[0]) + Number(actual.at(-1) === expected.at(-1));
+    const earned = Number(actual[0] === expected[0]) + Number(actual[expected.length - 1] === expected.at(-1));
     return { earned, max: 3 };
   }
   if (type === "multiple_choice") {
     const actual = new Set(normalizedParts(selected));
     const expected = new Set(normalizedParts(answer));
-    return { earned: [...expected].filter((part) => actual.has(part)).length, max: expected.size };
+    return { earned: actual.size <= 3 ? [...expected].filter((part) => actual.has(part)).length : 0, max: expected.size };
   }
   return { earned: normalizeAnswer(selected) === normalizeAnswer(answer) ? 1 : 0, max: 1 };
 }
@@ -53,7 +62,7 @@ const biologyAndGeography = table([
   [7,100],[8,107],[9,114],[10,119],[11,124],[12,128],[13,131],[14,134],[15,136],[16,138],[17,140],[18,142],[19,144],[20,145],[21,146],[22,147],[23,148],[24,149],[25,150],[26,151],[27,152],[28,154],[29,156],[30,158],[31,160],[32,162],[33,164],[34,166],[35,168],[36,170],[37,172],[38,175],[39,177],[40,179],[41,182],[42,185],[43,188],[44,192],[45,196],[46,200],
 ]);
 
-const officialTables: Record<string, Map<number, number>> = {
+export const officialTables: Record<string, Map<number, number>> = {
   ukrainian,
   mathematics,
   history,
@@ -68,6 +77,5 @@ export function officialNmtScore(subject: string, rawScore: number) {
 }
 
 export function isFullNmtAttempt(subject: string, totalQuestions: number) {
-  return subjectCatalog.get(subject)?.examQuestionCount === totalQuestions;
+  return ({ mathematics:22, ukrainian:30, history:30, english:32, german:32, biology:30, geography:30 } as Record<string, number>)[subject] === totalQuestions;
 }
-

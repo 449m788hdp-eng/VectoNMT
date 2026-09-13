@@ -1,5 +1,5 @@
 import { chatGPTSignInPath, chatGPTSignOutPath, getChatGPTUser } from "@/app/chatgpt-auth";
-import VektoApp from "@/app/vekto-app";
+import VektoApp from "@/app/platform-app";
 
 export const dynamic = "force-dynamic";
 

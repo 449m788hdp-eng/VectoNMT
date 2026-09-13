@@ -1,60 +1,60 @@
 {
   "name": "Vekto NMT question bank",
-  "version": 4,
-  "verifiedFor": "НМТ-2026",
-  "questionCount": 2512,
-  "officialQuestionCount": 412,
+  "version": 6,
   "runtimeAI": false,
-  "minimumTrainingTopicSize": 10,
+  "records": 2512,
+  "available": 820,
+  "official": 412,
   "subjects": [
     {
-      "slug": "mathematics",
-      "name": "Математика",
-      "examQuestionCount": 22,
-      "bankQuestionCount": 344,
-      "topicCount": 6
-    },
-    {
-      "slug": "ukrainian",
-      "name": "Українська мова",
-      "examQuestionCount": 30,
-      "bankQuestionCount": 360,
-      "topicCount": 11
+      "slug": "biology",
+      "name": "Біологія",
+      "records": 360,
+      "available": 80,
+      "official": 60
     },
     {
       "slug": "english",
       "name": "Англійська мова",
-      "examQuestionCount": 32,
-      "bankQuestionCount": 364,
-      "topicCount": 13
-    },
-    {
-      "slug": "history",
-      "name": "Історія України",
-      "examQuestionCount": 30,
-      "bankQuestionCount": 360,
-      "topicCount": 25
-    },
-    {
-      "slug": "german",
-      "name": "Німецька мова",
-      "examQuestionCount": 32,
-      "bankQuestionCount": 364,
-      "topicCount": 8
-    },
-    {
-      "slug": "biology",
-      "name": "Біологія",
-      "examQuestionCount": 30,
-      "bankQuestionCount": 360,
-      "topicCount": 16
+      "records": 364,
+      "available": 75,
+      "official": 64
     },
     {
       "slug": "geography",
       "name": "Географія",
-      "examQuestionCount": 30,
-      "bankQuestionCount": 360,
-      "topicCount": 18
+      "records": 360,
+      "available": 80,
+      "official": 60
+    },
+    {
+      "slug": "german",
+      "name": "Німецька мова",
+      "records": 364,
+      "available": 75,
+      "official": 64
+    },
+    {
+      "slug": "history",
+      "name": "Історія України",
+      "records": 360,
+      "available": 86,
+      "official": 60
+    },
+    {
+      "slug": "mathematics",
+      "name": "Математика",
+      "records": 344,
+      "available": 342,
+      "official": 44
+    },
+    {
+      "slug": "ukrainian",
+      "name": "Українська мова",
+      "records": 360,
+      "available": 82,
+      "official": 60
     }
-  ]
+  ],
+  "notes": "active=0: archived technical duplicate; official=published NMT-2025; practice=authored exercise. User profiles and test history are never included."
 }

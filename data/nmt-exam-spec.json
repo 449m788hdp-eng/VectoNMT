@@ -1,0 +1,18 @@
+{
+  "year": 2026,
+  "verifiedAt": "2026-09-12",
+  "stageSeconds": 7200,
+  "breakSeconds": 1200,
+  "instructionsUrl": "https://lv.testportal.gov.ua/?p=2888",
+  "scoringUrl": "https://testportal.gov.ua/wp-content/uploads/2026/01/nakaz_vid-29.01.pdf",
+  "scaleUrl": "https://zakon.rada.gov.ua/laws/show/z0374-26",
+  "subjects": {
+    "ukrainian": {"count":30,"max":45,"stage":1,"formats":[["single_choice",25],["matching",5]],"source":"https://testportal.gov.ua/ukrayinska-mova-2026/"},
+    "mathematics": {"count":22,"max":32,"stage":1,"formats":[["single_choice",15],["matching",3],["numeric",4]],"source":"https://testportal.gov.ua/matematyka-2026/"},
+    "history": {"count":30,"max":54,"stage":2,"formats":[["single_choice",20],["matching",4],["ordering",3],["multiple_choice",3]],"source":"https://testportal.gov.ua/istoriya-ukrayiny-2026/"},
+    "english": {"count":32,"max":32,"stage":2,"preserveVariant":true,"formats":[["language_matching",11],["single_choice",5],["gap_fill",16]],"source":"https://testportal.gov.ua/inozemni-movy-2026/"},
+    "german": {"count":32,"max":32,"stage":2,"preserveVariant":true,"formats":[["language_matching",11],["single_choice",5],["gap_fill",16]],"source":"https://testportal.gov.ua/inozemni-movy-2026/"},
+    "biology": {"count":30,"max":46,"stage":2,"formats":[["single_choice",24],["matching",4],["type_6",2]],"source":"https://testportal.gov.ua/biologiya-2026/"},
+    "geography": {"count":30,"max":46,"stage":2,"formats":[["single_choice",20],["numeric",4],["multiple_choice",6]],"source":"https://testportal.gov.ua/geografiya-2026/"}
+  }
+}
