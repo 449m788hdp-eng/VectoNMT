@@ -1396,22 +1396,30 @@ function Player({
           <p className="eyebrow">ПЕРШИЙ ЕТАП ЗАВЕРШЕНО</p>
           <h1>Час перепочити.</h1>
           <p>
-            Відповіді першого етапу зафіксовані. Попереду — історія України й
-            предмет на вибір.
+            Використай до 20 хвилин на відпочинок або переходь далі, коли будеш
+            готовий. Відповіді першого етапу вже зафіксовані.
           </p>
-          <strong className="break-clock">{clockText()}</strong>
+          <strong className="break-clock" aria-live="polite">
+            {clockText()}
+          </strong>
           <Button
             className="primary"
-            disabled={remaining > 0 || busy}
+            disabled={busy}
             onClick={async () => {
               const next = await send({ action: "continue" });
               if (next) setIndex(0);
             }}
           >
-            Перейти до другого етапу <ArrowRight size={18} />
+            {busy
+              ? "Відкриваємо другий етап…"
+              : remaining > 0
+                ? "Почати другий етап зараз"
+                : "Перейти до другого етапу"}{" "}
+            <ArrowRight size={18} />
           </Button>
           <p className="fine-print">
-            Таймер другого етапу почнеться після натискання кнопки.
+            Перерву можна завершити достроково. Таймер другого етапу почнеться
+            лише після натискання кнопки.
           </p>
         </section>
       </>

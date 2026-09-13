@@ -7,16 +7,24 @@ const db = new DatabaseSync(
 const client = () => {
   let cookie = "";
   return async (path = "/api/platform", body, expect = 200) => {
-    const r = await fetch(base + path, {
-      method: body ? "POST" : "GET",
-      headers: { cookie, "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (r.headers.get("set-cookie"))
-      cookie = r.headers.get("set-cookie").split(";")[0];
-    const d = await r.json();
-    assert.equal(r.status, expect, JSON.stringify(d));
-    return d;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const r = await fetch(base + path, {
+        method: body ? "POST" : "GET",
+        headers: { cookie, "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (r.headers.get("set-cookie"))
+        cookie = r.headers.get("set-cookie").split(";")[0];
+      const raw = await r.text();
+      if (r.status === 503 && raw.startsWith("Your worker restarted")) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        continue;
+      }
+      const d = JSON.parse(raw);
+      assert.equal(r.status, expect, JSON.stringify(d));
+      return d;
+    }
+    assert.fail(`Local worker kept restarting for ${path}`);
   };
 };
 const a = client(),
@@ -223,15 +231,7 @@ for (const fourthSubject of ["english", "german", "biology", "geography"]) {
   );
   run = await a(`/api/platform?session=${run.id}`);
   assert.equal(run.status, "break");
-  await a(
-    "/api/platform",
-    { action: "continue", id: run.id, revision: run.revision },
-    400,
-  );
-  db.prepare("UPDATE learning_sessions SET break_until=? WHERE id=?").run(
-    Math.floor(Date.now() / 1000) - 1,
-    run.id,
-  );
+  assert.ok(run.break_until > Math.floor(Date.now() / 1000));
   run = await a("/api/platform", {
     action: "continue",
     id: run.id,
@@ -264,5 +264,5 @@ assert.equal(after.stats.tests, 6);
 assert.equal(after.stats.streak, 1);
 assert.equal(after.history.length, 6);
 console.log(
-  "PASS: direct guest start, cancellation, automatic recovery, four-profile targets, isolation, resume, subject switching, persistence, revisions, reveal lock, no repeats, idempotent finish, four exam blueprints, two timers, break, scoring and statistics.",
+  "PASS: direct guest start, cancellation, automatic recovery, four-profile targets, isolation, resume, subject switching, persistence, revisions, reveal lock, no repeats, idempotent finish, four exam blueprints, two timers, optional break, scoring and statistics.",
 );

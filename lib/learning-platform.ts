@@ -417,8 +417,8 @@ export async function act(user: string, p: Row) {
       409,
     );
   if (p.action === "continue") {
-    if (s.status !== "break" || now() < s.break_until)
-      throw new PlatformError("Дочекайся завершення перерви");
+    if (s.status !== "break")
+      throw new PlatformError("Другий етап ще недоступний");
     await db
       .prepare(
         `UPDATE learning_sessions SET status='active',stage=2,deadline=?,break_until=NULL,current_index=0,revision=revision+1 WHERE id=? AND revision=?`,
