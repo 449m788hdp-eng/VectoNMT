@@ -43,6 +43,13 @@
       "when": 1789244762120,
       "tag": "0005_greedy_human_fly",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789327174669,
+      "tag": "0006_lazy_shard",
+      "breakpoints": true
     }
   ]
 }

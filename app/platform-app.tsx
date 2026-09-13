@@ -29,7 +29,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { SettingsView } from "./vekto-app";
 import { normalizeAnswer } from "@/lib/nmt-scoring";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -48,6 +47,8 @@ const tones = [
   "#96d8c7",
   "#a1d9ed",
 ];
+const requiredSubjectSlugs = ["ukrainian", "mathematics", "history"];
+const fourthSubjectSlugs = ["english", "german", "biology", "geography"];
 const formats: Record<string, string> = {
   single_choice: "Одна правильна відповідь",
   matching: "Установлення відповідності",
@@ -279,6 +280,7 @@ export default function PlatformApp({
     fourthSubject: data.profile.fourth_subject,
     subjectTargets: JSON.parse(data.profile.subject_targets_json || "{}"),
     targetScore: data.profile.target_score,
+    onboardingCompleted: Boolean(data.profile.onboarding_completed),
   };
   const practice = (slug: string) => {
     setSubject(slug);
@@ -287,6 +289,17 @@ export default function PlatformApp({
     setView("practice");
   };
   const stats = data.stats;
+  if (!run && !profile.onboardingCompleted)
+    return (
+      <div className="platform onboarding-shell">
+        <ProfileSetup
+          profile={profile}
+          subjects={data.subjects}
+          onboarding
+          onSaved={() => refresh().catch((e) => setError(e.message))}
+        />
+      </div>
+    );
   return (
     <div className="platform">
       {!run && (
@@ -538,7 +551,9 @@ export default function PlatformApp({
                       <div className="subject-footer">
                         <span>{s.required ? "Обов’язковий" : "На вибір"}</span>
                         <span>
-                          Ціль {profile.subjectTargets[s.slug] ?? 180}
+                          {s.required || s.slug === profile.fourthSubject
+                            ? `Ціль ${profile.subjectTargets[s.slug] ?? 180}`
+                            : "Для практики"}
                         </span>
                       </div>
                     </button>
@@ -778,21 +793,21 @@ export default function PlatformApp({
                       <Timer />
                     </span>
                     <h2>Готовий перевірити себе?</h2>
-                    <label>
-                      Твій четвертий предмет
-                      <select
-                        value={fourth}
-                        onChange={(e) => setFourth(e.target.value)}
+                    <div className="chosen-fourth">
+                      <span>Твій четвертий предмет</span>
+                      <strong>
+                        {
+                          data.subjects.find((s: Row) => s.slug === fourth)
+                            ?.name
+                        }
+                      </strong>
+                      <button
+                        className="text-link"
+                        onClick={() => setView("settings")}
                       >
-                        {data.subjects
-                          .filter((s: Row) => !s.required)
-                          .map((s: Row) => (
-                            <option key={s.slug} value={s.slug}>
-                              {s.name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
+                        Змінити у профілі <ArrowRight size={15} />
+                      </button>
+                    </div>
                     <p>
                       Симуляція складається з оприлюднених варіантів НМТ 2025
                       року, що відповідають структурі 2026 року. Варіанти
@@ -924,8 +939,9 @@ export default function PlatformApp({
             )}
             {view === "settings" && (
               <>
-                <SettingsView
+                <ProfileSetup
                   profile={profile}
+                  subjects={data.subjects}
                   signOutPath={signOutPath}
                   signedIn={!!initialIdentity}
                   onSaved={() => refresh().catch((e) => setError(e.message))}
@@ -950,6 +966,250 @@ export default function PlatformApp({
     </div>
   );
 }
+
+function ProfileSetup({
+  profile,
+  subjects,
+  onboarding = false,
+  signOutPath,
+  signedIn = false,
+  onSaved,
+}: {
+  profile: Row;
+  subjects: Row[];
+  onboarding?: boolean;
+  signOutPath?: string;
+  signedIn?: boolean;
+  onSaved: () => void;
+}) {
+  const [firstName, setFirstName] = useState(
+      profile.firstName === "Учень" ? "" : profile.firstName || "",
+    ),
+    [lastName, setLastName] = useState(profile.lastName || ""),
+    [grade, setGrade] = useState(profile.grade || "11"),
+    [fourthSubject, setFourthSubject] = useState(
+      profile.fourthSubject || "english",
+    ),
+    [targets, setTargets] = useState<Row>(() => ({
+      ...profile.subjectTargets,
+    })),
+    [saving, setSaving] = useState(false),
+    [message, setMessage] = useState("");
+  const chosenSlugs = [...requiredSubjectSlugs, fourthSubject];
+  const chosenSubjects = chosenSlugs
+    .map((slug) => subjects.find((subject) => subject.slug === slug))
+    .filter(Boolean) as Row[];
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    const selectedTargets = Object.fromEntries(
+      chosenSlugs.map((slug) => [slug, Number(targets[slug] ?? 180)]),
+    );
+    try {
+      const response = await fetch("/api/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          grade,
+          fourthSubject,
+          subjectTargets: selectedTargets,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as Row;
+      if (!response.ok)
+        throw Error(payload.error || "Не вдалося зберегти профіль");
+      setMessage("Збережено");
+      onSaved();
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <main className={onboarding ? "onboarding" : "profile-settings"}>
+      <header className="profile-setup-heading">
+        {onboarding && (
+          <a href="/" className="brand">
+            <span className="brand-mark">v↗</span> vekto
+            <span className="brand-dot">.</span>
+          </a>
+        )}
+        <div>
+          <p className="eyebrow">
+            {onboarding ? "ПЕРШЕ НАЛАШТУВАННЯ" : "ПРОФІЛЬ І ЦІЛІ"}
+          </p>
+          <h1>
+            {onboarding ? "Налаштуй свій НМТ." : "Твій навчальний маршрут."}
+          </h1>
+          <p>
+            Обери четвертий предмет і задай цілі лише для чотирьох тестів, які
+            складатимеш.
+          </p>
+        </div>
+        {onboarding && <span className="setup-step">01 / 02</span>}
+      </header>
+      <form className="profile-setup-grid" onSubmit={save}>
+        <section className="panel identity-panel">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">ПРО ТЕБЕ</span>
+              <h2>Як до тебе звертатися?</h2>
+            </div>
+            <span className="step-chip">1</span>
+          </div>
+          <div className="form-grid">
+            <label>
+              Ім’я
+              <input
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
+                autoComplete="given-name"
+                placeholder="Наприклад, Марія"
+                required
+                minLength={2}
+                maxLength={40}
+              />
+            </label>
+            <label>
+              Прізвище
+              <input
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+                autoComplete="family-name"
+                placeholder="Наприклад, Коваль"
+                required
+                minLength={2}
+                maxLength={40}
+              />
+            </label>
+            <label className="wide-field">
+              Клас
+              <select
+                value={grade}
+                onChange={(event) => setGrade(event.target.value)}
+              >
+                <option value="9">9 клас</option>
+                <option value="10">10 клас</option>
+                <option value="11">11 клас</option>
+                <option value="graduate">Випускник / випускниця</option>
+              </select>
+            </label>
+          </div>
+        </section>
+        <section className="panel subject-choice-panel">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">ТВІЙ ВИБІР</span>
+              <h2>Четвертий предмет</h2>
+              <p>Три обов’язкові вже додані. Обери ще один.</p>
+            </div>
+            <span className="step-chip">2</span>
+          </div>
+          <div className="fourth-choice-grid">
+            {fourthSubjectSlugs.map((slug, index) => {
+              const item = subjects.find((subject) => subject.slug === slug);
+              if (!item) return null;
+              const active = fourthSubject === slug;
+              return (
+                <button
+                  type="button"
+                  key={slug}
+                  aria-pressed={active}
+                  className={active ? "selected" : ""}
+                  onClick={() => {
+                    setFourthSubject(slug);
+                    setTargets((current) => ({
+                      ...current,
+                      [slug]: current[slug] ?? 180,
+                    }));
+                  }}
+                >
+                  <span>{["Aa", "Ä", "❋", "◎"][index]}</span>
+                  <strong>{item.name}</strong>
+                  <i>{active ? <Check size={16} /> : null}</i>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+        <section className="panel goals-panel">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">БАЖАНИЙ РЕЗУЛЬТАТ</span>
+              <h2>Чотири цілі за шкалою 100–200</h2>
+            </div>
+            <span className="goal-average">
+              Ø{" "}
+              {Math.round(
+                chosenSlugs.reduce(
+                  (sum, slug) => sum + Number(targets[slug] ?? 180),
+                  0,
+                ) / chosenSlugs.length,
+              )}
+            </span>
+          </div>
+          <div className="goal-grid">
+            {chosenSubjects.map((subject) => (
+              <label key={subject.slug}>
+                <span>
+                  <strong>{subject.name}</strong>
+                  <b>{targets[subject.slug] ?? 180}</b>
+                </span>
+                <input
+                  type="range"
+                  min="140"
+                  max="200"
+                  step="1"
+                  value={targets[subject.slug] ?? 180}
+                  onChange={(event) =>
+                    setTargets((current) => ({
+                      ...current,
+                      [subject.slug]: Number(event.target.value),
+                    }))
+                  }
+                />
+                <small>
+                  <span>140</span>
+                  <span>200</span>
+                </small>
+              </label>
+            ))}
+          </div>
+          <div className="profile-save-row">
+            <p>
+              Четвертий предмет: <strong>{chosenSubjects[3]?.name}</strong>
+            </p>
+            <Button className="primary" disabled={saving} type="submit">
+              {saving
+                ? "Зберігаємо…"
+                : onboarding
+                  ? "Увійти до Vekto"
+                  : "Зберегти зміни"}
+              <ArrowRight size={17} />
+            </Button>
+            {message && <span role="status">{message}</span>}
+          </div>
+        </section>
+      </form>
+      {!onboarding &&
+        (signedIn ? (
+          <a className="signout-link" href={signOutPath} target="_top">
+            Вийти з акаунта
+          </a>
+        ) : (
+          <p className="fine-print">
+            Профіль і прогрес зберігаються для цього браузера. Реєстрація поки
+            вимкнена.
+          </p>
+        ))}
+    </main>
+  );
+}
+
 function Heading({
   label,
   title,
@@ -1001,6 +1261,17 @@ function Player({
     (i: Row) => !onlyErrors || i.points < i.max_points,
   );
   const item = list[index] ?? list[0];
+  const subjectNumber = (question: Row) =>
+    run.items
+      .filter(
+        (candidate: Row) => candidate.subject_slug === question.subject_slug,
+      )
+      .findIndex(
+        (candidate: Row) => candidate.question_id === question.question_id,
+      ) + 1;
+  const visibleSubjects = run.config.subjects.filter((subject: Row) =>
+    list.some((question: Row) => question.subject_slug === subject.slug),
+  );
   useEffect(() => {
     setDraft(item?.answer ?? "");
   }, [item?.question_id, item?.answer]);
@@ -1126,6 +1397,39 @@ function Player({
           </span>
         )}
       </header>
+      {run.mode === "simulation" && (
+        <section className="exam-stage-switch" aria-label="Етапи симуляції НМТ">
+          {[
+            {
+              stage: 1,
+              title: "Блок 1",
+              subjects: "Українська мова · Математика",
+            },
+            {
+              stage: 2,
+              title: "Блок 2",
+              subjects: `Історія України · ${run.config.subjects.find((subject: Row) => subject.stage === 2 && subject.slug !== "history")?.name ?? "Предмет на вибір"}`,
+            },
+          ].map((block) => {
+            const active = !completed && run.stage === block.stage;
+            const done = completed || run.stage > block.stage;
+            return (
+              <div
+                key={block.stage}
+                className={`${active ? "active" : ""} ${done ? "done" : ""}`}
+                aria-current={active ? "step" : undefined}
+              >
+                <span>{done ? <Check size={16} /> : `0${block.stage}`}</span>
+                <strong>{block.title}</strong>
+                <small>{block.subjects}</small>
+                <em>
+                  {done ? "Завершено" : active ? "Зараз" : "Після перерви"}
+                </em>
+              </div>
+            );
+          })}
+        </section>
+      )}
       {completed && (
         <section className="result-banner">
           <div>
@@ -1157,6 +1461,31 @@ function Player({
           </div>
         </section>
       )}
+      <nav className="exam-subject-tabs" aria-label="Предмети поточного блоку">
+        {visibleSubjects.map((subject: Row) => {
+          const subjectItems = run.items.filter(
+            (question: Row) => question.subject_slug === subject.slug,
+          );
+          const firstIndex = list.findIndex(
+            (question: Row) => question.subject_slug === subject.slug,
+          );
+          const active = item?.subject_slug === subject.slug;
+          return (
+            <button
+              key={subject.slug}
+              className={active ? "active" : ""}
+              aria-current={active ? "page" : undefined}
+              onClick={() => navigate(firstIndex)}
+            >
+              <span>{subject.name}</span>
+              <small>
+                {subjectItems.filter((question: Row) => question.answer).length}
+                /{subjectItems.length} збережено
+              </small>
+            </button>
+          );
+        })}
+      </nav>
       <div className="exam-layout">
         <aside className="question-nav panel">
           <div className="section-heading">
@@ -1191,8 +1520,8 @@ function Player({
                       q.subject_slug === s.slug && (
                         <button
                           key={q.question_id}
-                          title={`Завдання ${q.position + 1}${q.flagged ? " · Позначене" : ""}`}
-                          aria-label={`Завдання ${q.position + 1}`}
+                          title={`Завдання ${subjectNumber(q)}${q.flagged ? " · Позначене" : ""}`}
+                          aria-label={`Завдання ${subjectNumber(q)}`}
                           aria-current={
                             item?.question_id === q.question_id
                               ? "step"
@@ -1201,7 +1530,7 @@ function Player({
                           className={`${item?.question_id === q.question_id ? "current" : ""} ${completed ? (q.points === q.max_points ? "correct" : "incorrect") : q.answer ? "answered" : ""} ${q.flagged ? "flagged" : ""}`}
                           onClick={() => navigate(i)}
                         >
-                          {q.position + 1}
+                          {subjectNumber(q)}
                           {q.flagged ? <i /> : null}
                         </button>
                       ),
@@ -1238,7 +1567,7 @@ function Player({
               </span>
             </div>
             <div className="question-title">
-              <h2>Завдання {item.position + 1}</h2>
+              <h2>Завдання {subjectNumber(item)}</h2>
               {!completed && (
                 <button
                   aria-label="Позначити завдання"
@@ -1307,7 +1636,7 @@ function Player({
               {!completed && run.mode === "practice" && !item.revealed && (
                 <Button
                   variant="outline"
-                  disabled={busy || draft !== item.answer}
+                  disabled={busy || !item.answer || draft !== item.answer}
                   onClick={() => send({ action: "reveal" })}
                 >
                   Показати відповідь

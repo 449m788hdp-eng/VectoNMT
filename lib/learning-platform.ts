@@ -215,6 +215,12 @@ export async function session(user: string, id: string) {
 
 export async function start(user: string, p: Row) {
   const db = getDatabase();
+  const profile = await one(
+    "SELECT onboarding_completed FROM profiles WHERE user_id=?",
+    user,
+  );
+  if (!profile?.onboarding_completed)
+    throw new PlatformError("Спочатку налаштуй свій профіль і цілі.");
   const cat = await catalog();
   const simulation = p.mode === "simulation";
   if (!simulation && p.mode !== "practice")

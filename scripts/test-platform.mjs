@@ -23,6 +23,18 @@ const a = client(),
   b = client();
 await a("/api/session", {});
 await b("/api/session", {});
+await a("/api/me", {
+  firstName: "Тест",
+  lastName: "Учень",
+  grade: "11",
+  fourthSubject: "biology",
+  subjectTargets: {
+    ukrainian: 181,
+    mathematics: 182,
+    history: 183,
+    biology: 184,
+  },
+});
 for (const subject of [
   "mathematics",
   "ukrainian",
@@ -36,6 +48,11 @@ for (const subject of [
 const dashboard = await a();
 assert.equal(dashboard.subjects.length, 7);
 assert.equal(dashboard.stats.tests, 0);
+assert.equal(dashboard.profile.onboarding_completed, 1);
+assert.deepEqual(
+  Object.keys(JSON.parse(dashboard.profile.subject_targets_json)).sort(),
+  ["biology", "history", "mathematics", "ukrainian"],
+);
 let run = await a("/api/platform", {
   action: "start",
   mode: "practice",
@@ -133,6 +150,20 @@ for (const fourthSubject of ["english", "german", "biology", "geography"]) {
   assert.equal(run.items.length, 52);
   assert(run.deadline - run.serverNow <= 7200);
   assert.equal(run.config.subjects.length, 4);
+  assert.deepEqual(
+    [...new Set(run.items.map((question) => question.subject_slug))].sort(),
+    ["mathematics", "ukrainian"],
+  );
+  const firstMathematics = run.items.find(
+    (question) => question.subject_slug === "mathematics",
+  );
+  run = await a("/api/platform", {
+    action: "navigate",
+    id: run.id,
+    revision: run.revision,
+    questionId: firstMathematics.question_id,
+  });
+  assert.equal(run.current_index, firstMathematics.position);
   await a(
     "/api/platform",
     {
@@ -185,6 +216,10 @@ for (const fourthSubject of ["english", "german", "biology", "geography"]) {
     revision: run.revision,
   });
   assert.equal(run.stage, 2);
+  assert.deepEqual(
+    [...new Set(run.items.map((question) => question.subject_slug))].sort(),
+    [fourthSubject, "history"].sort(),
+  );
   assert.equal(
     run.items.length,
     30 + (fourthSubject === "english" || fourthSubject === "german" ? 32 : 30),
@@ -207,5 +242,5 @@ assert.equal(after.stats.tests, 6);
 assert.equal(after.stats.streak, 1);
 assert.equal(after.history.length, 6);
 console.log(
-  "PASS: isolation, resume, persistence, revisions, reveal lock, no repeats, idempotent finish, four exam blueprints, two timers, break, scoring and statistics.",
+  "PASS: onboarding, four-profile targets, isolation, resume, subject switching, persistence, revisions, reveal lock, no repeats, idempotent finish, four exam blueprints, two timers, break, scoring and statistics.",
 );
