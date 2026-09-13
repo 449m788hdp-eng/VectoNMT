@@ -50,7 +50,7 @@ export async function overview(user: string) {
       user,
     ),
     rows(
-      `SELECT id,title,mode,status FROM learning_sessions WHERE user_id=? AND status!='completed' ORDER BY created_at DESC`,
+      `SELECT id,title,mode,status,stage,revision FROM learning_sessions WHERE user_id=? AND status IN ('active','break') ORDER BY created_at DESC`,
       user,
     ),
     rows(
@@ -97,7 +97,8 @@ async function getRun(user: string, id: string) {
     id,
     user,
   );
-  if (!s) throw new PlatformError("Тест не знайдено", 404);
+  if (!s || s.status === "cancelled")
+    throw new PlatformError("Тест не знайдено", 404);
   return s;
 }
 async function items(id: string) {
@@ -215,22 +216,15 @@ export async function session(user: string, id: string) {
 
 export async function start(user: string, p: Row) {
   const db = getDatabase();
-  const profile = await one(
-    "SELECT onboarding_completed FROM profiles WHERE user_id=?",
-    user,
-  );
-  if (!profile?.onboarding_completed)
-    throw new PlatformError("Спочатку налаштуй свій профіль і цілі.");
   const cat = await catalog();
   const simulation = p.mode === "simulation";
   if (!simulation && p.mode !== "practice")
     throw new PlatformError("Невідомий режим");
   const existing = await one(
-    `SELECT id FROM learning_sessions WHERE user_id=? AND status!='completed' LIMIT 1`,
+    `SELECT id FROM learning_sessions WHERE user_id=? AND status IN ('active','break') LIMIT 1`,
     user,
   );
-  if (existing)
-    throw new PlatformError("Спочатку продовж або заверши поточний тест.");
+  if (existing) return session(user, existing.id);
   if (
     simulation &&
     !["english", "german", "biology", "geography"].includes(p.fourthSubject)
@@ -407,12 +401,21 @@ export async function act(user: string, p: Row) {
   if (p.action === "start") return start(user, p);
   let s = await settle(await getRun(user, String(p.id)));
   if (s.status === "completed") return session(user, s.id);
+  const db = getDatabase();
+  if (p.action === "cancel") {
+    await db
+      .prepare(
+        `UPDATE learning_sessions SET status='cancelled',deadline=NULL,break_until=NULL,revision=revision+1 WHERE id=? AND user_id=? AND status IN ('active','break')`,
+      )
+      .bind(s.id, user)
+      .run();
+    return { id: s.id, cancelled: true };
+  }
   if (Number(p.revision) !== s.revision)
     throw new PlatformError(
       "Тест оновлено в іншій вкладці. Онови сторінку.",
       409,
     );
-  const db = getDatabase();
   if (p.action === "continue") {
     if (s.status !== "break" || now() < s.break_until)
       throw new PlatformError("Дочекайся завершення перерви");

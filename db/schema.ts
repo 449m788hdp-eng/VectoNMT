@@ -214,7 +214,7 @@ export const learningSessions = sqliteTable(
     ),
     oneActive: uniqueIndex("learning_sessions_one_active")
       .on(table.userId)
-      .where(sql`status != 'completed'`),
+      .where(sql`status IN ('active','break')`),
   }),
 );
 export const sessionItems = sqliteTable(

@@ -53,12 +53,34 @@ assert.deepEqual(
   Object.keys(JSON.parse(dashboard.profile.subject_targets_json)).sort(),
   ["biology", "history", "mathematics", "ukrainian"],
 );
+let guestRun = await b("/api/platform", {
+  action: "start",
+  mode: "practice",
+  subject: "ukrainian",
+  count: 1,
+});
+assert.equal(guestRun.items.length, 1);
+await b("/api/platform", {
+  action: "cancel",
+  id: guestRun.id,
+  revision: guestRun.revision,
+});
+assert.equal((await b()).active.length, 0);
+assert.equal((await b()).stats.tests, 0);
 let run = await a("/api/platform", {
   action: "start",
   mode: "practice",
   subject: "mathematics",
   count: 5,
 });
+const automaticallyResumed = await a("/api/platform", {
+  action: "start",
+  mode: "practice",
+  subject: "ukrainian",
+  count: 10,
+});
+assert.equal(automaticallyResumed.id, run.id);
+run = automaticallyResumed;
 assert.equal(run.items.length, 5);
 assert.equal(new Set(run.items.map((q) => q.question_id)).size, 5);
 assert(!JSON.stringify(run).includes("correct_answer"));
@@ -242,5 +264,5 @@ assert.equal(after.stats.tests, 6);
 assert.equal(after.stats.streak, 1);
 assert.equal(after.history.length, 6);
 console.log(
-  "PASS: onboarding, four-profile targets, isolation, resume, subject switching, persistence, revisions, reveal lock, no repeats, idempotent finish, four exam blueprints, two timers, break, scoring and statistics.",
+  "PASS: direct guest start, cancellation, automatic recovery, four-profile targets, isolation, resume, subject switching, persistence, revisions, reveal lock, no repeats, idempotent finish, four exam blueprints, two timers, break, scoring and statistics.",
 );

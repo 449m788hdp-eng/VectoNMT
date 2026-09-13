@@ -154,6 +154,67 @@ function Empty({
   );
 }
 
+function ActiveSessionNotice({
+  active,
+  busy,
+  onOpen,
+  onCancel,
+}: {
+  active: Row;
+  busy: boolean;
+  onOpen: () => void;
+  onCancel: () => Promise<void>;
+}) {
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  return (
+    <>
+      <section className="resume active-session-notice" role="status">
+        <div className="active-session-copy">
+          <span className="eyebrow">НЕЗАВЕРШЕНИЙ ТЕСТ</span>
+          <h3>{active.title}</h3>
+          <p>
+            {active.status === "break"
+              ? "Перший блок завершено. Перерва триває — відкрий тест, щоб побачити таймер."
+              : "Спроба збережена в базі. Продовж її або скасуй, щоб почати інший тест."}
+          </p>
+        </div>
+        <div className="active-session-actions">
+          <Button variant="outline" onClick={() => setConfirmCancel(true)}>
+            Скасувати
+          </Button>
+          <Button disabled={busy} onClick={onOpen}>
+            Відкрити тест <ArrowRight size={17} />
+          </Button>
+        </div>
+      </section>
+      <Dialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <DialogContent className="platform panel confirm-dialog">
+          <DialogTitle>Скасувати незавершений тест?</DialogTitle>
+          <DialogDescription>
+            Ця спроба не потрапить до результатів і статистики. Після цього
+            можна одразу почати інший тест.
+          </DialogDescription>
+          <div className="question-actions">
+            <Button variant="outline" onClick={() => setConfirmCancel(false)}>
+              Залишити тест
+            </Button>
+            <Button
+              className="danger-action"
+              disabled={busy}
+              onClick={async () => {
+                setConfirmCancel(false);
+                await onCancel();
+              }}
+            >
+              Так, скасувати
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function PlatformApp({
   signOutPath,
   initialIdentity,
@@ -244,6 +305,24 @@ export default function PlatformApp({
     history.replaceState(null, "", "/");
     refresh().catch((e) => setError(e.message));
   };
+  const cancelActive = async (active: Row) => {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/api/platform", {
+        action: "cancel",
+        id: active.id,
+        revision: active.revision,
+      });
+      if (run?.id === active.id) setRun(null);
+      history.replaceState(null, "", "/");
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   if (!data)
     return (
       <main className="platform boot">
@@ -289,17 +368,6 @@ export default function PlatformApp({
     setView("practice");
   };
   const stats = data.stats;
-  if (!run && !profile.onboardingCompleted)
-    return (
-      <div className="platform onboarding-shell">
-        <ProfileSetup
-          profile={profile}
-          subjects={data.subjects}
-          onboarding
-          onSaved={() => refresh().catch((e) => setError(e.message))}
-        />
-      </div>
-    );
   return (
     <div className="platform">
       {!run && (
@@ -397,6 +465,14 @@ export default function PlatformApp({
               <X size={18} />
             </button>
           </div>
+        )}
+        {!run && view !== "overview" && data.active[0] && (
+          <ActiveSessionNotice
+            active={data.active[0]}
+            busy={busy}
+            onOpen={() => open(data.active[0].id)}
+            onCancel={() => cancelActive(data.active[0])}
+          />
         )}
         {run ? (
           <Player
@@ -502,21 +578,12 @@ export default function PlatformApp({
                   })}
                 </div>
                 {data.active.length > 0 && (
-                  <section className="resume">
-                    <div>
-                      <span className="eyebrow">ТИ ВЖЕ ПОЧАВ</span>
-                      <h3>{data.active[0].title}</h3>
-                      <p>
-                        Відповіді збережені. Таймер симуляції продовжує йти.
-                      </p>
-                    </div>
-                    <Button
-                      disabled={busy}
-                      onClick={() => open(data.active[0].id)}
-                    >
-                      Продовжити <ArrowRight size={17} />
-                    </Button>
-                  </section>
+                  <ActiveSessionNotice
+                    active={data.active[0]}
+                    busy={busy}
+                    onOpen={() => open(data.active[0].id)}
+                    onCancel={() => cancelActive(data.active[0])}
+                  />
                 )}
                 <div className="section-heading">
                   <div>
@@ -797,18 +864,19 @@ export default function PlatformApp({
                     <h2>Готовий перевірити себе?</h2>
                     <div className="chosen-fourth">
                       <span>Твій четвертий предмет</span>
-                      <strong>
-                        {
-                          data.subjects.find((s: Row) => s.slug === fourth)
-                            ?.name
-                        }
-                      </strong>
-                      <button
-                        className="text-link"
-                        onClick={() => setView("settings")}
+                      <select
+                        value={fourth}
+                        onChange={(event) => setFourth(event.target.value)}
                       >
-                        Змінити у профілі <ArrowRight size={15} />
-                      </button>
+                        {data.subjects
+                          .filter((candidate: Row) => !candidate.required)
+                          .map((candidate: Row) => (
+                            <option key={candidate.slug} value={candidate.slug}>
+                              {candidate.name}
+                            </option>
+                          ))}
+                      </select>
+                      <small>Обирається лише для цієї симуляції.</small>
                     </div>
                     <p>
                       Симуляція складається з оприлюднених варіантів НМТ 2025
@@ -950,12 +1018,6 @@ export default function PlatformApp({
                   signedIn={!!initialIdentity}
                   onSaved={() => refresh().catch((e) => setError(e.message))}
                 />
-                <p className="fine-print">
-                  Реєстрація тимчасово вимкнена. Прогрес зберігається в базі за
-                  профілем цього браузера. Видалення cookies призведе до втрати
-                  доступу до гостьового профілю; синхронізація між пристроями
-                  наразі недоступна.
-                </p>
               </>
             )}
             <footer className="platform-footer">
@@ -974,14 +1036,12 @@ export default function PlatformApp({
 function ProfileSetup({
   profile,
   subjects,
-  onboarding = false,
   signOutPath,
   signedIn = false,
   onSaved,
 }: {
   profile: Row;
   subjects: Row[];
-  onboarding?: boolean;
   signOutPath?: string;
   signedIn?: boolean;
   onSaved: () => void;
@@ -1034,27 +1094,16 @@ function ProfileSetup({
     }
   };
   return (
-    <main className={onboarding ? "onboarding" : "profile-settings"}>
+    <main className="profile-settings">
       <header className="profile-setup-heading">
-        {onboarding && (
-          <a href="/" className="brand">
-            <span className="brand-mark">v↗</span> vekto
-            <span className="brand-dot">.</span>
-          </a>
-        )}
         <div>
-          <p className="eyebrow">
-            {onboarding ? "ПЕРШЕ НАЛАШТУВАННЯ" : "ПРОФІЛЬ І ЦІЛІ"}
-          </p>
-          <h1>
-            {onboarding ? "Налаштуй свій НМТ." : "Твій навчальний маршрут."}
-          </h1>
+          <p className="eyebrow">ПРОФІЛЬ І ЦІЛІ</p>
+          <h1>Твій навчальний маршрут.</h1>
           <p>
-            Обери четвертий предмет і задай цілі лише для чотирьох тестів, які
-            складатимеш.
+            Ім’я заповнювати необов’язково. Тут можна змінити четвертий предмет
+            і цілі для чотирьох тестів.
           </p>
         </div>
-        {onboarding && <span className="setup-step">01 / 02</span>}
       </header>
       <form className="profile-setup-grid" onSubmit={save}>
         <section className="panel identity-panel">
@@ -1067,26 +1116,22 @@ function ProfileSetup({
           </div>
           <div className="form-grid">
             <label>
-              Ім’я
+              Ім’я (необов’язково)
               <input
                 value={firstName}
                 onChange={(event) => setFirstName(event.target.value)}
                 autoComplete="given-name"
                 placeholder="Наприклад, Марія"
-                required
-                minLength={2}
                 maxLength={40}
               />
             </label>
             <label>
-              Прізвище
+              Прізвище (необов’язково)
               <input
                 value={lastName}
                 onChange={(event) => setLastName(event.target.value)}
                 autoComplete="family-name"
                 placeholder="Наприклад, Коваль"
-                required
-                minLength={2}
                 maxLength={40}
               />
             </label>
@@ -1188,28 +1233,22 @@ function ProfileSetup({
               Четвертий предмет: <strong>{chosenSubjects[3]?.name}</strong>
             </p>
             <Button className="primary" disabled={saving} type="submit">
-              {saving
-                ? "Зберігаємо…"
-                : onboarding
-                  ? "Увійти до Vekto"
-                  : "Зберегти зміни"}
+              {saving ? "Зберігаємо…" : "Зберегти зміни"}
               <ArrowRight size={17} />
             </Button>
             {message && <span role="status">{message}</span>}
           </div>
         </section>
       </form>
-      {!onboarding &&
-        (signedIn ? (
-          <a className="signout-link" href={signOutPath} target="_top">
-            Вийти з акаунта
-          </a>
-        ) : (
-          <p className="fine-print">
-            Профіль і прогрес зберігаються для цього браузера. Реєстрація поки
-            вимкнена.
-          </p>
-        ))}
+      {signedIn ? (
+        <a className="signout-link" href={signOutPath} target="_top">
+          Вийти з акаунта
+        </a>
+      ) : (
+        <p className="fine-print">
+          Прогрес зберігається для цього браузера без реєстрації.
+        </p>
+      )}
     </main>
   );
 }

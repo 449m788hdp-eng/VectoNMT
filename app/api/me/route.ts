@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       fourthSubject?: string;
       subjectTargets?: Record<string, number>;
     };
-    const firstName = cleanName(payload.firstName);
+    const firstName = cleanName(payload.firstName) || "Учень";
     const lastName = cleanName(payload.lastName);
     const grade = ["9", "10", "11", "graduate"].includes(payload.grade ?? "")
       ? payload.grade!
@@ -81,12 +81,11 @@ export async function POST(request: Request) {
     );
     const displayName = `${firstName} ${lastName}`.trim();
     if (
-      firstName.length < 2 ||
       firstName.length > 40 ||
-      lastName.length < 2 ||
+      (lastName.length > 0 && lastName.length < 2) ||
       lastName.length > 40
     )
-      return Response.json({ error: "Вкажи ім’я та прізвище" }, noStore(400));
+      return Response.json({ error: "Перевір ім’я та прізвище" }, noStore(400));
     const db = getDatabase();
     await db.batch([
       db
