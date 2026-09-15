@@ -57,6 +57,13 @@
       "when": 1789328195099,
       "tag": "0007_chunky_anthem",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789415254613,
+      "tag": "0008_lucky_omega_flight",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,8 @@ import {
   Clock,
   CheckCircle2,
   TriangleAlert,
+  Search,
+  ChevronDown,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +32,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { normalizeAnswer } from "@/lib/nmt-scoring";
-import katex from "katex";
 import "katex/dist/katex.min.css";
 import "./platform.css";
 
@@ -59,6 +60,20 @@ const formats: Record<string, string> = {
   language_matching: "Установлення відповідності",
   gap_fill: "Заповнення пропусків",
 };
+let katexRenderer: typeof import("katex").default | null = null;
+let katexRequest: Promise<typeof import("katex").default> | null = null;
+const loadKatex = () => {
+  if (katexRenderer) return Promise.resolve(katexRenderer);
+  if (!katexRequest)
+    katexRequest = import("katex").then((module) => {
+      katexRenderer = module.default;
+      return katexRenderer;
+    }).catch((error) => {
+      katexRequest = null;
+      throw error;
+    });
+  return katexRequest;
+};
 async function api(path = "/api/platform", body?: Row): Promise<Row> {
   const res = await fetch(
     path,
@@ -76,6 +91,18 @@ async function api(path = "/api/platform", body?: Row): Promise<Row> {
   return data;
 }
 function Rich({ text }: { text: string }) {
+  const [, setReady] = useState(0);
+  const hasMath = /(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\(|\\\[)/.test(text || "");
+  useEffect(() => {
+    if (!hasMath || katexRenderer) return;
+    let live = true;
+    loadKatex().then(() => {
+      if (live) setReady((value) => value + 1);
+    }).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [hasMath]);
   const parts = (text || "").split(
     /(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g,
   );
@@ -87,11 +114,17 @@ function Rich({ text }: { text: string }) {
           const source = p.startsWith("$")
             ? p.slice(block ? 2 : 1, block ? -2 : -1)
             : p.slice(2, -2);
+          if (!katexRenderer)
+            return (
+              <span className="math-loading" key={i}>
+                {source}
+              </span>
+            );
           return (
             <span
               key={i}
               dangerouslySetInnerHTML={{
-                __html: katex.renderToString(source, {
+                __html: katexRenderer.renderToString(source, {
                   throwOnError: false,
                   trust: false,
                   displayMode: block,
@@ -229,11 +262,14 @@ export default function PlatformApp({
     [subject, setSubject] = useState("mathematics"),
     [section, setSection] = useState(""),
     [topic, setTopic] = useState(""),
+    [query, setQuery] = useState(""),
     [count, setCount] = useState(10),
     [fourth, setFourth] = useState("english"),
-    [agreed, setAgreed] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => {
+    if (error) document.querySelector(".error-banner")?.scrollIntoView({ block: "start" });
+  }, [error]);
   const refresh = useCallback(async () => {
     const d = await api();
     setData(d);
@@ -241,21 +277,16 @@ export default function PlatformApp({
   }, []);
   useEffect(() => {
     let live = true;
+    const syncView = () => {
+      const route = location.hash.slice(1);
+      if (views.includes(route)) setView(route);
+    };
+    syncView();
+    window.addEventListener("hashchange", syncView);
     (async () => {
       try {
-        await api("/api/session", {});
-        await Promise.all(
-          [
-            "mathematics",
-            "ukrainian",
-            "history",
-            "english",
-            "german",
-            "biology",
-            "geography",
-          ].map((subject) => api("/api/platform/bootstrap", { subject })),
-        );
-        const d = await api();
+        const initialized = await api("/api/session", {});
+        const d = initialized.data;
         if (!live) return;
         setData(d);
         setFourth(d.profile.fourth_subject);
@@ -270,13 +301,30 @@ export default function PlatformApp({
     })();
     return () => {
       live = false;
+      window.removeEventListener("hashchange", syncView);
     };
   }, []);
   const action = async (p: Row) => {
     setError("");
     setBusy(true);
     try {
-      const result = await api("/api/platform", p);
+      const result = await api("/api/platform", { ...p, compact: true });
+      if (result.patch && run) {
+        const next = {
+          ...run,
+          revision: result.revision,
+          current_index: result.current_index,
+          items: result.item
+            ? run.items.map((item: Row) =>
+                item.question_id === result.item.question_id
+                  ? { ...item, ...result.item }
+                  : item,
+              )
+            : run.items,
+        };
+        setRun(next);
+        return next;
+      }
       setRun(result);
       history.replaceState(null, "", `?session=${result.id}`);
       return result;
@@ -326,18 +374,32 @@ export default function PlatformApp({
   if (!data)
     return (
       <main className="platform boot">
-        <span className="brand">
-          v<span>↗</span> vekto
-        </span>
-        <h1>
-          {error
-            ? "Не вдалося завантажити платформу"
-            : "Твій простір підготовки"}
-        </h1>
-        <p>{error || "Завантажуємо предмети та твій прогрес…"}</p>
-        {error && (
-          <Button onClick={() => location.reload()}>Спробувати ще раз</Button>
-        )}
+        <div className="boot-card">
+          <span className="brand">
+            <span className="brand-mark">v↗</span> vekto
+            <span className="brand-dot">.</span>
+          </span>
+          {error ? (
+            <>
+              <h1>Не вдалося відкрити платформу</h1>
+              <p>{error}</p>
+              <Button onClick={() => location.reload()}>
+                Спробувати ще раз
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="boot-spinner" aria-hidden="true" />
+              <h1>Готуємо твій кабінет</h1>
+              <p>Ще мить — і можна починати підготовку.</p>
+              <div className="boot-lines" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            </>
+          )}
+        </div>
       </main>
     );
   const selected =
@@ -361,15 +423,24 @@ export default function PlatformApp({
     targetScore: data.profile.target_score,
     onboardingCompleted: Boolean(data.profile.onboarding_completed),
   };
-  const practice = (slug: string) => {
+  const practice = (slug: string, topicId = "") => {
     setSubject(slug);
     setSection("");
-    setTopic("");
+    setTopic(topicId);
     setView("practice");
+    history.replaceState(null, "", "#practice");
+    window.scrollTo({ top: 0 });
   };
   const stats = data.stats;
+  const focusTopic = data.topicStats.find((t: Row) => t.earned < t.maximum);
+  const changeView = (v: string) => {
+    setView(v);
+    history.replaceState(null, "", `#${v}`);
+    window.scrollTo({ top: 0 });
+  };
   return (
     <div className="platform">
+      <a className="skip-link" href="#main-content">До вмісту</a>
       {!run && (
         <>
           <aside className="sidebar">
@@ -385,7 +456,8 @@ export default function PlatformApp({
                   <button
                     className={view === v ? "active" : ""}
                     key={v}
-                    onClick={() => setView(v)}
+                    aria-current={view === v ? "page" : undefined}
+                    onClick={() => changeView(v)}
                   >
                     <Icon size={20} />
                     {names[i]}
@@ -432,7 +504,8 @@ export default function PlatformApp({
                 <button
                   key={v}
                   className={view === v ? "active" : ""}
-                  onClick={() => setView(v)}
+                  aria-current={view === v ? "page" : undefined}
+                  onClick={() => changeView(v)}
                 >
                   <Icon size={20} />
                   <span>{names[i]}</span>
@@ -442,7 +515,7 @@ export default function PlatformApp({
           </nav>
         </>
       )}
-      <main className={run ? "platform-main player-main" : "platform-main"}>
+      <main id="main-content" className={run ? "platform-main player-main" : "platform-main"}>
         {!run && (
           <header className="topbar">
             <span>
@@ -466,7 +539,7 @@ export default function PlatformApp({
             </button>
           </div>
         )}
-        {!run && view !== "overview" && data.active[0] && (
+        {!run && data.active[0] && (
           <ActiveSessionNotice
             active={data.active[0]}
             busy={busy}
@@ -476,6 +549,7 @@ export default function PlatformApp({
         )}
         {run ? (
           <Player
+            key={run.id}
             run={run}
             setRun={setRun}
             busy={busy}
@@ -508,23 +582,24 @@ export default function PlatformApp({
                 <div className="overview-grid">
                   <section className="hero-card">
                     <div className="hero-content">
-                      <span className="pill">ТВОЯ ВЕЛИКА РЕПЕТИЦІЯ</span>
+                      <span className="pill">ПІДГОТОВКА У ТВОЄМУ ТЕМПІ</span>
                       <h2>
-                        Відчуй НМТ.
+                        Маленький крок сьогодні.
                         <br />
-                        До справжнього НМТ.
+                        Впевненість на НМТ.
                       </h2>
                       <p>
-                        Чотири предмети. Два етапи. Реальний таймер.
+                        Обери тему й потренуйся без поспіху.
                         <br />
-                        Зосередься на завданнях — решту ми підготували.
+                        Розбирай помилки та рухайся до своєї цілі.
                       </p>
                       <Button
                         className="primary"
-                        onClick={() => setView("simulation")}
+                        onClick={() => changeView("practice")}
                       >
-                        Спробувати симуляцію <ArrowUpRight size={18} />
+                        Почати практику <ArrowRight size={18} />
                       </Button>
+                      <button className="text-link hero-secondary" onClick={() => changeView("simulation")}>Спробувати симуляцію НМТ <ArrowUpRight size={16} /></button>
                     </div>
                     <div className="hero-art" aria-hidden="true">
                       <div className="orbit orbit-one" />
@@ -537,20 +612,34 @@ export default function PlatformApp({
                     <div className="icon-bubble">
                       <Target />
                     </div>
-                    <span className="eyebrow">МАЛЕНЬКИЙ КРОК СЬОГОДНІ</span>
+                    <span className="eyebrow">
+                      {focusTopic ? "РЕКОМЕНДОВАНО ДЛЯ ТЕБЕ" : "ШВИДКИЙ СТАРТ"}
+                    </span>
                     <h3>
-                      10 запитань.
-                      <br />
-                      Більше впевненості.
+                      {focusTopic ? focusTopic.name : "10 запитань."}
+                      {!focusTopic && (
+                        <>
+                          <br />
+                          Більше впевненості.
+                        </>
+                      )}
                     </h3>
                     <p>
-                      Почни з математики або обери тему, яку хочеш підтягнути.
+                      {focusTopic
+                        ? `Тут твій результат поки найнижчий — коротка практика допоможе закріпити тему.`
+                        : "Почни з математики або обери тему, яку хочеш підтягнути."}
                     </p>
                     <button
                       className="text-link"
-                      onClick={() => practice("mathematics")}
+                      onClick={() =>
+                        practice(
+                          focusTopic?.subject_slug ?? "mathematics",
+                          focusTopic ? String(focusTopic.topic_id) : "",
+                        )
+                      }
                     >
-                      Почати практику <ArrowRight size={18} />
+                      {focusTopic ? "Попрацювати над темою" : "Почати практику"}{" "}
+                      <ArrowRight size={18} />
                     </button>
                   </section>
                 </div>
@@ -577,14 +666,6 @@ export default function PlatformApp({
                     );
                   })}
                 </div>
-                {data.active.length > 0 && (
-                  <ActiveSessionNotice
-                    active={data.active[0]}
-                    busy={busy}
-                    onOpen={() => open(data.active[0].id)}
-                    onCancel={() => cancelActive(data.active[0])}
-                  />
-                )}
                 <div className="section-heading">
                   <div>
                     <h2>Твої предмети</h2>
@@ -598,7 +679,9 @@ export default function PlatformApp({
                   </button>
                 </div>
                 <div className="subject-grid">
-                  {data.subjects.map((s: Row, i: number) => (
+                  {data.subjects.filter((s: Row) => s.required || s.slug === profile.fourthSubject).map((s: Row) => {
+                    const i = data.subjects.findIndex((v: Row) => v.slug === s.slug);
+                    return (
                     <button
                       className="subject-card"
                       key={s.slug}
@@ -624,7 +707,7 @@ export default function PlatformApp({
                         </span>
                       </div>
                     </button>
-                  ))}
+                  );})}
                 </div>
               </>
             )}
@@ -632,11 +715,12 @@ export default function PlatformApp({
               <>
                 <Heading
                   label="ТВОЯ ПРАКТИКА"
-                  title="Тренуй саме те, що потрібно."
-                  text="Обери предмет і тему. Завдання беруться з готової бази; спочатку — ті, яких ти ще не бачив."
+                  title="Практика без зайвого."
+                  text="Один предмет, твоя тема й зручна кількість запитань. Без таймера, з розбором відповідей."
                 />
                 <div className="practice-layout">
                   <section className="panel setup">
+                    <div className="setup-title"><BookOpen size={20} /><h2>Твоє тренування</h2></div>
                     <label>
                       Предмет
                       <select
@@ -645,6 +729,7 @@ export default function PlatformApp({
                           setSubject(e.target.value);
                           setSection("");
                           setTopic("");
+                          setQuery("");
                         }}
                       >
                         {data.subjects.map((s: Row) => (
@@ -732,7 +817,7 @@ export default function PlatformApp({
                       }
                     >
                       {busy
-                        ? "Завантажуємо завдання з бази…"
+                        ? "Відкриваємо тренування…"
                         : "Почати тренування"}
                       <Play size={17} />
                     </Button>
@@ -747,12 +832,15 @@ export default function PlatformApp({
                         {selected.question_count} завдань
                       </span>
                     </div>
+                    <label className="topic-search"><Search size={18} /><input type="search" placeholder="Знайти тему або підтему" aria-label="Пошук тем" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
+                    {query && !selected.topics.some((t: Row) => `${t.section_name} ${t.name}`.toLocaleLowerCase("uk-UA").includes(query.trim().toLocaleLowerCase("uk-UA"))) && <Empty title="Такої теми не знайдено">Спробуй інше слово або очисть пошук.</Empty>}
                     {sections.map((s) => {
                       const ts = selected.topics.filter(
-                        (t: Row) => t.section_name === s,
+                        (t: Row) => t.section_name === s && `${s} ${t.name}`.toLocaleLowerCase("uk-UA").includes(query.trim().toLocaleLowerCase("uk-UA")),
                       );
+                      if (!ts.length) return null;
                       return (
-                        <details key={s} open={section === s || undefined}>
+                        <details key={`${s}-${Boolean(query)}`} open={!!query || section === s || undefined}>
                           <summary>
                             {s}
                             <span>
@@ -770,6 +858,7 @@ export default function PlatformApp({
                                 onClick={() => {
                                   setSection(s);
                                   setTopic(String(t.id));
+                                  document.querySelector(".setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                 }}
                                 className={
                                   topic === String(t.id) ? "selected" : ""
@@ -800,7 +889,7 @@ export default function PlatformApp({
               <>
                 <Heading
                   label="ГЕНЕРАЛЬНА РЕПЕТИЦІЯ · НМТ–2026"
-                  title="Один іспит. Твій справжній темп."
+                  title="Репетиція справжнього НМТ."
                   text="Пройди всі чотири предмети з правилами, часом і типами завдань офіційного НМТ."
                 />
                 <div className="simulation-layout">
@@ -820,7 +909,7 @@ export default function PlatformApp({
                       </div>
                     </div>
                     <div className="break-line">
-                      <Clock size={16} /> Перерва 20 хвилин
+                      <Clock size={16} /> До 20 хвилин перерви · можна пропустити
                     </div>
                     <div className="stage-card">
                       <span className="stage-number">02</span>
@@ -865,6 +954,7 @@ export default function PlatformApp({
                     <div className="chosen-fourth">
                       <span>Твій четвертий предмет</span>
                       <select
+                        aria-label="Четвертий предмет для симуляції"
                         value={fourth}
                         onChange={(event) => setFourth(event.target.value)}
                       >
@@ -884,18 +974,16 @@ export default function PlatformApp({
                       обираються випадково з перевагою раніше не пройдених.
                       Спільні тексти не розриваються.
                     </p>
-                    <label className="check-label">
-                      <input
-                        type="checkbox"
-                        checked={agreed}
-                        onChange={(e) => setAgreed(e.target.checked)}
-                      />{" "}
-                      Я ознайомився з правилами й маю час на два етапи та
-                      перерву.
-                    </label>
+                    <div className="info-note">
+                      <Clock size={18} />
+                      <span>
+                        120 хвилин на кожен етап. Перерву до 20 хвилин можна
+                        пропустити й одразу продовжити тест.
+                      </span>
+                    </div>
                     <Button
                       className="primary full"
-                      disabled={!agreed || busy}
+                      disabled={busy}
                       onClick={() =>
                         action({
                           action: "start",
@@ -925,8 +1013,8 @@ export default function PlatformApp({
               <>
                 <Heading
                   label="ТВОЯ ДИНАМІКА"
-                  title="Результати, що мають значення."
-                  text="Лише завершені тести та фактично збережені відповіді. Для практики — відсоток балів, для симуляції — шкала НМТ."
+                  title="Твій прогрес у деталях."
+                  text="Переглядай спроби, розбирай помилки й знаходь теми, яким варто приділити увагу."
                 />
                 {data.history.length ? (
                   <div className="history-layout">
@@ -962,8 +1050,8 @@ export default function PlatformApp({
                       ))}
                     </section>
                     <section className="panel">
-                      <h2>На що звернути увагу</h2>
-                      <p>Підтеми з найнижчою часткою набраних балів.</p>
+                      <h2>Результати за темами</h2>
+                      <p>Від складніших до впевнених. Натисни тему, щоб потренуватися.</p>
                       {data.topicStats.map((t: Row) => (
                         <button
                           className="weak-topic"
@@ -995,10 +1083,13 @@ export default function PlatformApp({
                     </section>
                   </div>
                 ) : (
+                  <div className="empty-action">
                   <Empty title="Твоя історія ще попереду">
                     Заверши перше тренування — тут з’являться бали, відповіді та
                     теми для повторення.
                   </Empty>
+                  <Button className="primary" onClick={() => changeView("practice")}>Почати перше тренування <ArrowRight size={17} /></Button>
+                  </div>
                 )}
                 {stats.legacy > 0 && (
                   <p className="fine-print">
@@ -1094,7 +1185,7 @@ function ProfileSetup({
     }
   };
   return (
-    <main className="profile-settings">
+    <section className="profile-settings">
       <header className="profile-setup-heading">
         <div>
           <p className="eyebrow">ПРОФІЛЬ І ЦІЛІ</p>
@@ -1189,7 +1280,8 @@ function ProfileSetup({
           <div className="section-heading">
             <div>
               <span className="eyebrow">БАЖАНИЙ РЕЗУЛЬТАТ</span>
-              <h2>Чотири цілі за шкалою 100–200</h2>
+              <h2>Твої цілі на НМТ</h2>
+              <p>Обери бажаний бал для кожного з чотирьох предметів.</p>
             </div>
             <span className="goal-average">
               Ø{" "}
@@ -1249,7 +1341,7 @@ function ProfileSetup({
           Прогрес зберігається для цього браузера без реєстрації.
         </p>
       )}
-    </main>
+    </section>
   );
 }
 
@@ -1298,6 +1390,17 @@ function Player({
     [confirm, setConfirm] = useState(false),
     [clock, setClock] = useState(Date.now()),
     [onlyErrors, setOnlyErrors] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [pendingMove, setPendingMove] = useState<number | "home" | null>(null);
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [run.status, run.stage]);
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    try {
+      const saved = sessionStorage.getItem(`vekto-position-${run.id}`);
+      const restored = run.items.findIndex((q: Row) => String(q.question_id) === saved);
+      if (restored >= 0) setIndex(restored);
+    } catch { /* Navigation preference is optional. Answers remain in the database. */ }
+  }, [run.id]);
   const [offset, setOffset] = useState(run.serverNow * 1000 - Date.now());
   const completed = run.status === "completed";
   const list = run.items.filter(
@@ -1353,29 +1456,25 @@ function Player({
       revision: run.revision,
       questionId: p.questionId ?? item?.question_id,
     });
-  const navigate = async (n: number) => {
-    if (busy) return;
-    if (
-      draft !== (item?.answer ?? "") &&
-      !window.confirm(
-        "Ця відповідь ще не збережена. Перейти без її збереження?",
-      )
-    )
-      return;
+  const goTo = (n: number) => {
     setIndex(n);
-    if (!completed)
-      await send({ action: "navigate", questionId: list[n].question_id });
+    setNavOpen(false);
+    try { sessionStorage.setItem(`vekto-position-${run.id}`, String(list[n]?.question_id)); } catch {}
+    document.querySelector(".question-panel")?.scrollIntoView({ block: "start" });
+  };
+  const navigate = (n: number) => {
+    if (busy) return;
+    if (draft !== (item?.answer ?? "")) return setPendingMove(n);
+    goTo(n);
   };
   const returnHome = () => {
-    if (
-      draft !== (item?.answer ?? "") &&
-      !window.confirm("Залишити незбережену відповідь?")
-    )
-      return;
+    if (busy) return;
+    if (draft !== (item?.answer ?? "")) return setPendingMove("home");
     leave();
   };
   const clockText = () => {
-    const seconds = Math.ceil(remaining / 1000);
+    const limit = run.status === "break" ? run.config.breakSeconds : run.config.stageSeconds;
+    const seconds = Math.min(limit, Math.ceil(remaining / 1000));
     return `${Math.floor(seconds / 3600)
       .toString()
       .padStart(2, "0")}:${Math.floor((seconds % 3600) / 60)
@@ -1399,7 +1498,7 @@ function Player({
             Використай до 20 хвилин на відпочинок або переходь далі, коли будеш
             готовий. Відповіді першого етапу вже зафіксовані.
           </p>
-          <strong className="break-clock" aria-live="polite">
+          <strong className="break-clock" aria-label="Час до кінця перерви">
             {clockText()}
           </strong>
           <Button
@@ -1492,6 +1591,9 @@ function Player({
             <p>
               {run.result.earned} із {run.result.maximum} тестових балів
             </p>
+            <button className="text-link result-review-link" onClick={() => { setOnlyErrors(!onlyErrors); setIndex(0); }}>
+              {onlyErrors ? "Показати всі завдання" : "Розібрати помилки"} <ArrowRight size={17} />
+            </button>
           </div>
           <div className="result-subjects">
             {run.result.subjects.map((s: Row) => (
@@ -1537,8 +1639,23 @@ function Player({
           );
         })}
       </nav>
+      {!completed && (
+        <div className="test-progress" aria-label="Прогрес поточного етапу">
+          <div>
+            <span
+              style={{
+                width: `${run.items.length ? (answered / run.items.length) * 100 : 0}%`,
+              }}
+            />
+          </div>
+          <small>
+            {answered} із {run.items.length} відповідей збережено
+          </small>
+        </div>
+      )}
+      <button className="mobile-question-toggle" aria-expanded={navOpen} aria-controls="question-navigation" onClick={() => setNavOpen(!navOpen)}><span>Завдання {item ? subjectNumber(item) : "—"} · усі запитання</span><ChevronDown size={18} /></button>
       <div className="exam-layout">
-        <aside className="question-nav panel">
+        <aside id="question-navigation" className={`question-nav panel ${navOpen ? "is-open" : ""}`}>
           <div className="section-heading">
             <h3>{completed ? "Розбір завдань" : "Навігація"}</h3>
             <span>
@@ -1572,7 +1689,7 @@ function Player({
                         <button
                           key={q.question_id}
                           title={`Завдання ${subjectNumber(q)}${q.flagged ? " · Позначене" : ""}`}
-                          aria-label={`Завдання ${subjectNumber(q)}`}
+                          aria-label={`${s.name}: завдання ${subjectNumber(q)}${completed ? q.points === q.max_points ? ", правильно" : ", є помилка" : q.answer ? ", збережено" : ", без відповіді"}${q.flagged ? ", позначено" : ""}`}
                           aria-current={
                             item?.question_id === q.question_id
                               ? "step"
@@ -1591,10 +1708,10 @@ function Player({
             ))}
           <div className="nav-legend">
             <span>
-              <i className="answered" /> Збережено
+              <i className="answered" /> {completed ? "Правильно" : "Збережено"}
             </span>
             <span>
-              <i className="flagged" /> Позначено
+              <i className="flagged" /> {completed ? "Є помилка" : "Позначено"}
             </span>
           </div>
           {!completed && (
@@ -1610,7 +1727,7 @@ function Player({
           )}
         </aside>
         {item ? (
-          <article className="panel question-panel">
+          <article className="panel question-panel" aria-label="Поточне завдання">
             <div className="question-meta">
               <span>{formats[item.format] || formats[item.type]}</span>
               <span>
@@ -1622,6 +1739,7 @@ function Player({
               {!completed && (
                 <button
                   aria-label="Позначити завдання"
+                  aria-pressed={Boolean(item.flagged)}
                   className={`flag-button ${item.flagged ? "lime" : ""}`}
                   disabled={busy}
                   onClick={() => send({ action: "flag" })}
@@ -1674,7 +1792,7 @@ function Player({
               {!completed && !item.revealed && (
                 <Button
                   className="primary"
-                  disabled={busy}
+                  disabled={busy || (!draft && !item.answer) || (draft === item.answer && !!item.answer)}
                   onClick={() => send({ action: "save", answer: draft })}
                 >
                   {busy
@@ -1774,7 +1892,7 @@ function Player({
               ? "Поточна чернетка не збережена й не буде врахована. "
               : ""}
             {run.mode === "simulation" && run.stage === 1
-              ? "Після завершення повернутися до цього етапу не можна. Почнеться перерва на 20 хвилин."
+              ? "Після завершення повернутися до цього етапу не можна. Можна відпочити до 20 хвилин або одразу почати другий етап."
               : "Ненадані відповіді отримають 0 балів. Змінити результат після завершення не можна."}
           </DialogDescription>
           <div className="question-actions">
@@ -1794,6 +1912,16 @@ function Player({
             >
               Так, завершити
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={pendingMove !== null} onOpenChange={(open) => { if (!open) setPendingMove(null); }}>
+        <DialogContent className="platform panel confirm-dialog" style={{ minHeight: 0 }}>
+          <DialogTitle>Зберегти відповідь перед переходом?</DialogTitle>
+          <DialogDescription>Ти змінив відповідь, але ще не зберіг її. До результату потрапляють лише збережені відповіді.</DialogDescription>
+          <div className="question-actions">
+            <Button variant="outline" disabled={busy} onClick={() => { const destination = pendingMove; setPendingMove(null); destination === "home" ? leave() : goTo(destination as number); }}>Без збереження</Button>
+            <Button className="primary" disabled={busy} onClick={async () => { const result = await send({ action: "save", answer: draft }); if (result) { const destination = pendingMove; setPendingMove(null); destination === "home" ? leave() : goTo(destination as number); } }}>{busy ? "Зберігаємо…" : "Зберегти й перейти"}</Button>
           </div>
         </DialogContent>
       </Dialog>

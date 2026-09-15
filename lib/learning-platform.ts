@@ -43,29 +43,34 @@ export async function catalog(): Promise<Row[]> {
 }
 
 export async function overview(user: string) {
-  const [profile, history, active, topicStats] = await Promise.all([
-    one("SELECT * FROM profiles WHERE user_id=?", user),
-    rows(
-      `SELECT id,title,mode,completed_at,result_json FROM learning_sessions WHERE user_id=? AND status='completed' ORDER BY completed_at DESC LIMIT 100`,
-      user,
-    ),
-    rows(
-      `SELECT id,title,mode,status,stage,revision FROM learning_sessions WHERE user_id=? AND status IN ('active','break') ORDER BY created_at DESC`,
-      user,
-    ),
-    rows(
-      `SELECT t.name,t.subject_slug,SUM(i.points) earned,SUM(i.max_points) maximum,COUNT(*) count FROM session_items i JOIN learning_sessions s ON s.id=i.session_id JOIN topics t ON t.id=i.topic_id WHERE s.user_id=? AND s.status='completed' GROUP BY t.id ORDER BY 1.0*SUM(i.points)/SUM(i.max_points) LIMIT 12`,
-      user,
-    ),
-  ]);
-  const totals = await one(
-    `SELECT COUNT(DISTINCT s.id) tests,SUM(i.points) earned,SUM(i.max_points) maximum,COUNT(i.question_id) questions FROM learning_sessions s JOIN session_items i ON i.session_id=s.id WHERE s.user_id=? AND s.status='completed'`,
-    user,
-  );
-  const days = await rows(
-    `SELECT completed_at FROM learning_sessions WHERE user_id=? AND status='completed' ORDER BY completed_at DESC`,
-    user,
-  );
+  const [profile, history, active, topicStats, totals, days, legacy] =
+    await Promise.all([
+      one("SELECT * FROM profiles WHERE user_id=?", user),
+      rows(
+        `SELECT id,title,mode,completed_at,result_json FROM learning_sessions WHERE user_id=? AND status='completed' ORDER BY completed_at DESC LIMIT 100`,
+        user,
+      ),
+      rows(
+        `SELECT id,title,mode,status,stage,revision FROM learning_sessions WHERE user_id=? AND status IN ('active','break') ORDER BY created_at DESC`,
+        user,
+      ),
+      rows(
+        `SELECT t.id topic_id,t.name,t.subject_slug,SUM(i.points) earned,SUM(i.max_points) maximum,COUNT(*) count FROM session_items i JOIN learning_sessions s ON s.id=i.session_id JOIN topics t ON t.id=i.topic_id WHERE s.user_id=? AND s.status='completed' GROUP BY t.id ORDER BY 1.0*SUM(i.points)/SUM(i.max_points) LIMIT 12`,
+        user,
+      ),
+      one(
+        `SELECT COUNT(DISTINCT s.id) tests,SUM(i.points) earned,SUM(i.max_points) maximum,COUNT(i.question_id) questions FROM learning_sessions s JOIN session_items i ON i.session_id=s.id WHERE s.user_id=? AND s.status='completed'`,
+        user,
+      ),
+      rows(
+        `SELECT completed_at FROM learning_sessions WHERE user_id=? AND status='completed' ORDER BY completed_at DESC`,
+        user,
+      ),
+      one(
+        "SELECT COUNT(*) count FROM test_attempts WHERE user_id=? AND completed_at IS NOT NULL",
+        user,
+      ),
+    ]);
   let streak = 0;
   const dates = new Set(days.map((d) => kyivDate(new Date(d.completed_at))));
   const date = new Date();
@@ -74,10 +79,6 @@ export async function overview(user: string) {
     streak++;
     date.setDate(date.getDate() - 1);
   }
-  const legacy = await one(
-    "SELECT COUNT(*) count FROM test_attempts WHERE user_id=? AND completed_at IS NOT NULL",
-    user,
-  );
   return {
     profile,
     history: history.map((h) => ({
@@ -171,9 +172,7 @@ async function settle(s: Row) {
   return s;
 }
 
-export async function session(user: string, id: string) {
-  const s = await settle(await getRun(user, id));
-  const list = await items(id);
+function presentSession(s: Row, list: Row[]) {
   const config = parse(s.config_json);
   return {
     ...s,
@@ -214,9 +213,32 @@ export async function session(user: string, id: string) {
   };
 }
 
+export async function session(user: string, id: string) {
+  const s = await settle(await getRun(user, id));
+  return presentSession(s, await items(id));
+}
+
+async function subjectConfigs(slugs: string[]) {
+  const placeholders = slugs.map(() => "?").join(",");
+  const records = await rows(
+    `SELECT s.*,e.config_json,e.scale_json FROM subjects s JOIN exam_configs e ON e.subject_slug=s.slug WHERE s.slug IN (${placeholders})`,
+    ...slugs,
+  );
+  return slugs.map((slug) => {
+    const subject = records.find((record) => record.slug === slug);
+    if (!subject) return null;
+    return {
+      ...subject,
+      config: parse(subject.config_json),
+      scale: parse(subject.scale_json),
+      config_json: undefined,
+      scale_json: undefined,
+    };
+  });
+}
+
 export async function start(user: string, p: Row) {
   const db = getDatabase();
-  const cat = await catalog();
   const simulation = p.mode === "simulation";
   if (!simulation && p.mode !== "practice")
     throw new PlatformError("Невідомий режим");
@@ -233,82 +255,95 @@ export async function start(user: string, p: Row) {
   const slugs = simulation
     ? ["ukrainian", "mathematics", "history", p.fourthSubject]
     : [p.subject];
-  const selected = slugs.map((slug) => cat.find((s) => s.slug === slug));
+  const selected = await subjectConfigs(slugs);
   if (selected.some((s) => !s)) throw new PlatformError("Предмет не знайдено");
+  const readySubjects = selected.filter(Boolean) as Row[];
   let list: Row[] = [];
-  for (const subject of selected) {
-    if (simulation) {
-      const variants = await rows(
-        `SELECT q.year,q.session,COUNT(q.id) count, (SELECT COUNT(*) FROM session_items i JOIN learning_sessions l ON l.id=i.session_id JOIN questions prev ON prev.id=i.question_id WHERE l.user_id=? AND prev.subject_slug=q.subject_slug AND prev.year=q.year AND prev.session=q.session) exposure FROM questions q WHERE q.subject_slug=? AND q.source_kind='official' AND q.active=1 GROUP BY q.year,q.session HAVING COUNT(*)=? ORDER BY exposure,RANDOM()`,
-        user,
-        subject!.slug,
-        subject!.config.count,
-      );
-      if (!variants.length)
-        throw new PlatformError(`Немає повного варіанта: ${subject!.name}`);
-      const variant = variants[0];
-      const questions = await rows(
-        `SELECT q.*,t.name topic_name FROM questions q JOIN topics t ON t.id=q.topic_id WHERE q.subject_slug=? AND q.year=? AND q.session=? AND q.source_kind='official' AND q.active=1 ORDER BY q.position`,
-        subject!.slug,
-        variant.year,
-        variant.session,
-      );
-      const formats = subject!.config.formats as [string, number][];
-      if (
-        formats.some(
-          ([type, count]) =>
-            questions.filter((q) => q.exam_format === type).length !== count,
-        ) ||
-        questions.reduce(
-          (sum, q) =>
-            sum + pointsFor(q.question_type, "", q.correct_answer).max,
-          0,
-        ) !== subject!.config.max
-      )
-        throw new PlatformError("Варіант не відповідає специфікації НМТ");
-      list.push(...questions);
-    } else {
-      const count = Number(p.count);
-      if (!Number.isInteger(count) || count < 1 || count > 100)
-        throw new PlatformError("Від 1 до 100 запитань");
-      list = await rows(
-        `SELECT q.*,t.name topic_name,(SELECT COUNT(*) FROM session_items i JOIN learning_sessions s ON s.id=i.session_id WHERE s.user_id=? AND i.canonical_key=q.canonical_key) exposure FROM questions q JOIN topics t ON t.id=q.topic_id WHERE q.subject_slug=? AND q.active=1 AND (?='' OR t.section_name=?) AND (?=0 OR t.id=?) ORDER BY exposure,RANDOM() LIMIT ?`,
-        user,
-        subject!.slug,
-        p.section ?? "",
-        p.section ?? "",
-        Number(p.topicId) || 0,
-        Number(p.topicId) || 0,
-        count,
-      );
-      list = [...new Map(list.map((q) => [q.canonical_key, q])).values()];
-      if (!list.length)
-        throw new PlatformError(
-          "У цій темі ще немає завдань. Обери іншу тему.",
+  if (simulation) {
+    const variants = await Promise.all(
+      readySubjects.map(async (subject) => {
+        const available = await rows(
+          `SELECT q.year,q.session,COUNT(q.id) count, (SELECT COUNT(*) FROM session_items i JOIN learning_sessions l ON l.id=i.session_id JOIN questions prev ON prev.id=i.question_id WHERE l.user_id=? AND prev.subject_slug=q.subject_slug AND prev.year=q.year AND prev.session=q.session) exposure FROM questions q WHERE q.subject_slug=? AND q.source_kind='official' AND q.active=1 GROUP BY q.year,q.session HAVING COUNT(*)=? ORDER BY exposure,RANDOM()`,
+          user,
+          subject.slug,
+          subject.config.count,
         );
+        if (!available.length)
+          throw new PlatformError(`Немає повного варіанта: ${subject.name}`);
+        const variant = available[0];
+        const questions = await rows(
+          `SELECT q.*,t.name topic_name FROM questions q JOIN topics t ON t.id=q.topic_id WHERE q.subject_slug=? AND q.year=? AND q.session=? AND q.source_kind='official' AND q.active=1 ORDER BY q.position`,
+          subject.slug,
+          variant.year,
+          variant.session,
+        );
+        const formats = subject.config.formats as [string, number][];
+        if (
+          formats.some(
+            ([type, count]) =>
+              questions.filter((q) => q.exam_format === type).length !== count,
+          ) ||
+          questions.reduce(
+            (sum, q) =>
+              sum + pointsFor(q.question_type, "", q.correct_answer).max,
+            0,
+          ) !== subject.config.max
+        )
+          throw new PlatformError("Варіант не відповідає специфікації НМТ");
+        return questions;
+      }),
+    );
+    list = variants.flat();
+  } else {
+    const count = Number(p.count);
+    const subject = readySubjects[0];
+    if (!Number.isInteger(count) || count < 1 || count > 100)
+      throw new PlatformError("Від 1 до 100 запитань");
+    list = await rows(
+      `SELECT q.*,t.name topic_name FROM questions q JOIN topics t ON t.id=q.topic_id WHERE q.subject_slug=? AND q.active=1 AND (?='' OR t.section_name=?) AND (?=0 OR t.id=?) AND NOT EXISTS(SELECT 1 FROM session_items i JOIN learning_sessions s ON s.id=i.session_id WHERE s.user_id=? AND i.canonical_key=q.canonical_key) GROUP BY q.canonical_key ORDER BY RANDOM() LIMIT ?`,
+      subject.slug,
+      p.section ?? "",
+      p.section ?? "",
+      Number(p.topicId) || 0,
+      Number(p.topicId) || 0,
+      user,
+      count,
+    );
+    if (list.length < count) {
+      const selectedKeys = list.map((question) => question.canonical_key);
+      const exclusions = selectedKeys.length
+        ? ` AND q.canonical_key NOT IN (${selectedKeys.map(() => "?").join(",")})`
+        : "";
+      const fallback = await rows(
+        `SELECT q.*,t.name topic_name FROM questions q JOIN topics t ON t.id=q.topic_id WHERE q.subject_slug=? AND q.active=1 AND (?='' OR t.section_name=?) AND (?=0 OR t.id=?)${exclusions} GROUP BY q.canonical_key ORDER BY RANDOM() LIMIT ?`,
+        subject.slug,
+        p.section ?? "",
+        p.section ?? "",
+        Number(p.topicId) || 0,
+        Number(p.topicId) || 0,
+        ...selectedKeys,
+        count - list.length,
+      );
+      list.push(...fallback);
     }
+    if (!list.length)
+      throw new PlatformError("У цій темі ще немає завдань. Обери іншу тему.");
   }
   const id = crypto.randomUUID();
-  const subjects = [];
-  for (const subject of selected) {
-    const scale = await one(
-      "SELECT scale_json FROM exam_configs WHERE subject_slug=?",
-      subject!.slug,
-    );
-    subjects.push({
-      slug: subject!.slug,
-      name: subject!.name,
-      ...subject!.config,
-      scale: parse(scale!.scale_json),
-    });
-  }
+  const subjects = readySubjects.map((subject) => ({
+    slug: subject.slug,
+    name: subject.name,
+    ...subject.config,
+    scale: subject.scale,
+  }));
   const config = {
     subjects,
     stageSeconds: subjects[0].stageSeconds,
     breakSeconds: subjects[0].breakSeconds,
     requestedCount: p.count ?? list.length,
   };
-  const title = simulation ? "Симуляція НМТ" : selected[0]!.name;
+  const title = simulation ? "Симуляція НМТ" : readySubjects[0].name;
+  const deadline = simulation ? now() + config.stageSeconds : null;
   const stmts = [
     db
       .prepare(
@@ -320,10 +355,16 @@ export async function start(user: string, p: Row) {
         simulation ? "simulation" : "practice",
         title,
         JSON.stringify(config),
-        simulation ? now() + config.stageSeconds : null,
+        deadline,
       ),
   ];
-  list.forEach((q, position) =>
+  const sessionRows = list.map((q, position) => {
+    const stage = simulation
+      ? readySubjects.find((subject) => subject.slug === q.subject_slug)!.config
+          .stage
+      : 1;
+    const snapshot = JSON.stringify(q);
+    const maxPoints = pointsFor(q.question_type, "", q.correct_answer).max;
     stmts.push(
       db
         .prepare(
@@ -335,17 +376,47 @@ export async function start(user: string, p: Row) {
           q.subject_slug,
           q.topic_id,
           q.canonical_key,
-          simulation
-            ? selected.find((s) => s!.slug === q.subject_slug)!.config.stage
-            : 1,
+          stage,
           position,
-          JSON.stringify(q),
-          pointsFor(q.question_type, "", q.correct_answer).max,
+          snapshot,
+          maxPoints,
         ),
-    ),
-  );
+    );
+    return {
+      session_id: id,
+      question_id: q.id,
+      subject_slug: q.subject_slug,
+      topic_id: q.topic_id,
+      canonical_key: q.canonical_key,
+      stage,
+      position,
+      snapshot_json: snapshot,
+      answer: "",
+      flagged: 0,
+      revealed: 0,
+      points: null,
+      max_points: maxPoints,
+    };
+  });
   await db.batch(stmts);
-  return session(user, id);
+  return presentSession(
+    {
+      id,
+      mode: simulation ? "simulation" : "practice",
+      title,
+      status: "active",
+      stage: 1,
+      current_index: 0,
+      deadline,
+      break_until: null,
+      config_json: JSON.stringify(config),
+      result_json: null,
+      revision: 0,
+      created_at: new Date().toISOString(),
+      completed_at: null,
+    },
+    sessionRows,
+  );
 }
 
 function validAnswer(q: Row, answer: string) {
@@ -446,13 +517,20 @@ export async function act(user: string, p: Row) {
     );
     if (!item) throw new PlatformError("Завдання не належить поточному етапу");
     if (p.action === "navigate") {
-      await db
+      const navigation = await db
         .prepare(
           "UPDATE learning_sessions SET current_index=?,revision=revision+1 WHERE id=? AND revision=?",
         )
         .bind(item.position, s.id, s.revision)
         .run();
-      return session(user, s.id);
+      if (!navigation.meta.changes) throw new PlatformError("Тест змінився в іншій вкладці. Відкрий його повторно.");
+      if (!p.compact) return session(user, s.id);
+      return {
+        patch: true,
+        id: s.id,
+        revision: s.revision + 1,
+        current_index: item.position,
+      };
     }
     const q = parse(item.snapshot_json);
     if (p.action === "reveal" && s.mode === "simulation")
@@ -480,7 +558,7 @@ export async function act(user: string, p: Row) {
         : p.action === "reveal"
           ? 1
           : Number(!item.flagged);
-    await db.batch([
+    const changes = await db.batch([
       db
         .prepare(
           `UPDATE session_items SET ${field}=? WHERE session_id=? AND question_id=? AND EXISTS(SELECT 1 FROM learning_sessions WHERE id=? AND revision=?)`,
@@ -492,6 +570,28 @@ export async function act(user: string, p: Row) {
         )
         .bind(item.position, s.id, s.revision),
     ]);
+    if (!changes[1].meta.changes) throw new PlatformError("Тест змінився в іншій вкладці. Відкрий його повторно.");
+    if (!p.compact) return session(user, s.id);
+    const itemPatch: Row = { question_id: item.question_id };
+    if (p.action === "save") itemPatch.answer = value;
+    if (p.action === "flag") itemPatch.flagged = value;
+    if (p.action === "reveal") {
+      itemPatch.revealed = 1;
+      itemPatch.correctAnswer = q.correct_answer;
+      itemPatch.explanation = q.explanation;
+      itemPatch.points = pointsFor(
+        q.question_type,
+        item.answer,
+        q.correct_answer,
+      ).earned;
+    }
+    return {
+      patch: true,
+      id: s.id,
+      revision: s.revision + 1,
+      current_index: item.position,
+      item: itemPatch,
+    };
   } else throw new PlatformError("Невідома дія");
   return session(user, s.id);
 }

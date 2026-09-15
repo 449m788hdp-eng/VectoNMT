@@ -4,6 +4,8 @@ import { allQuestionRecords, subjectCatalog } from "./question-bank";
 import { officialTables } from "./nmt-scoring";
 import { getDatabase } from "./server-data";
 
+const subjectSlugs = Array.from(subjectCatalog.keys());
+
 // Versioned data installation, separate from schema migrations. Classification
 // is prepared offline. Exam/training requests subsequently read D1 only.
 export async function bootstrapSubject(slug: string) {
@@ -112,4 +114,18 @@ export async function bootstrapSubject(slug: string) {
       .prepare("UPDATE subjects SET bank_version=? WHERE slug=?")
       .bind(index.version, slug),
   ]);
+}
+
+export async function bootstrapQuestionBank() {
+  const state = await getDatabase()
+    .prepare("SELECT slug,bank_version FROM subjects")
+    .all<{ slug: string; bank_version: number }>();
+  const versions = new Map(
+    state.results.map((subject) => [subject.slug, subject.bank_version]),
+  );
+  const missing = subjectSlugs.filter(
+    (slug) => (versions.get(slug) ?? 0) < index.version,
+  );
+  for (const slug of missing) await bootstrapSubject(slug);
+  return { ready: true, updated: missing.length };
 }

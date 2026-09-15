@@ -4,6 +4,7 @@ const base = "http://127.0.0.1:8787";
 const db = new DatabaseSync(
   ".wrangler/state/v3/d1/miniflare-D1DatabaseObject/faaf2b0445ab934c3aac48ddf0cdfade8f9bac050be98993748742cdd2cb05fb.sqlite",
 );
+db.exec("PRAGMA busy_timeout = 5000");
 const client = () => {
   let cookie = "";
   return async (path = "/api/platform", body, expect = 200) => {
@@ -29,6 +30,21 @@ const client = () => {
 };
 const a = client(),
   b = client();
+const mergePatch = (run, result) =>
+  result.patch
+    ? {
+        ...run,
+        revision: result.revision,
+        current_index: result.current_index,
+        items: result.item
+          ? run.items.map((item) =>
+              item.question_id === result.item.question_id
+                ? { ...item, ...result.item }
+                : item,
+            )
+          : run.items,
+      }
+    : result;
 await a("/api/session", {});
 await b("/api/session", {});
 await a("/api/me", {
@@ -99,13 +115,17 @@ const answer = db
   .prepare("SELECT correct_answer FROM questions WHERE id=?")
   .get(question.question_id).correct_answer;
 const previousRevision = run.revision;
-run = await a("/api/platform", {
-  action: "save",
-  id: run.id,
-  revision: run.revision,
-  questionId: question.question_id,
-  answer,
-});
+run = mergePatch(
+  run,
+  await a("/api/platform", {
+    action: "save",
+    compact: true,
+    id: run.id,
+    revision: run.revision,
+    questionId: question.question_id,
+    answer,
+  }),
+);
 assert.equal(run.items[0].answer, answer);
 await a(
   "/api/platform",
@@ -120,19 +140,26 @@ await a(
 );
 const resumed = await a(`/api/platform?session=${run.id}`);
 assert.equal(resumed.items[0].answer, answer);
-run = await a("/api/platform", {
-  action: "navigate",
-  id: run.id,
-  revision: run.revision,
-  questionId: run.items[2].question_id,
-});
+run = mergePatch(
+  run,
+  await a("/api/platform", {
+    action: "navigate",
+    id: run.id,
+    revision: run.revision,
+    questionId: run.items[2].question_id,
+  }),
+);
 assert.equal((await a(`/api/platform?session=${run.id}`)).current_index, 2);
-run = await a("/api/platform", {
-  action: "reveal",
-  id: run.id,
-  revision: run.revision,
-  questionId: question.question_id,
-});
+run = mergePatch(
+  run,
+  await a("/api/platform", {
+    action: "reveal",
+    compact: true,
+    id: run.id,
+    revision: run.revision,
+    questionId: question.question_id,
+  }),
+);
 assert.equal(run.items[0].points, run.items[0].max_points);
 await a(
   "/api/platform",
@@ -187,12 +214,15 @@ for (const fourthSubject of ["english", "german", "biology", "geography"]) {
   const firstMathematics = run.items.find(
     (question) => question.subject_slug === "mathematics",
   );
-  run = await a("/api/platform", {
-    action: "navigate",
-    id: run.id,
-    revision: run.revision,
-    questionId: firstMathematics.question_id,
-  });
+  run = mergePatch(
+    run,
+    await a("/api/platform", {
+      action: "navigate",
+      id: run.id,
+      revision: run.revision,
+      questionId: firstMathematics.question_id,
+    }),
+  );
   assert.equal(run.current_index, firstMathematics.position);
   await a(
     "/api/platform",

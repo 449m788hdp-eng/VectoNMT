@@ -79,6 +79,20 @@ export const questions = sqliteTable(
       table.session,
       table.position,
     ),
+    practiceSelection: index("idx_questions_practice_selection").on(
+      table.subjectSlug,
+      table.active,
+      table.topicId,
+      table.canonicalKey,
+    ),
+    officialVariant: index("idx_questions_official_variant").on(
+      table.subjectSlug,
+      table.sourceKind,
+      table.active,
+      table.year,
+      table.session,
+      table.position,
+    ),
   }),
 );
 
@@ -212,6 +226,11 @@ export const learningSessions = sqliteTable(
       table.userId,
       table.status,
     ),
+    userCompleted: index("idx_learning_sessions_user_completed").on(
+      table.userId,
+      table.status,
+      table.completedAt,
+    ),
     oneActive: uniqueIndex("learning_sessions_one_active")
       .on(table.userId)
       .where(sql`status IN ('active','break')`),
@@ -242,5 +261,10 @@ export const sessionItems = sqliteTable(
     pk: primaryKey({ columns: [table.sessionId, table.questionId] }),
     seen: index("session_items_canonical").on(table.canonicalKey),
     topic: index("session_items_topic").on(table.topicId),
+    sessionStagePosition: index("idx_session_items_session_stage_position").on(
+      table.sessionId,
+      table.stage,
+      table.position,
+    ),
   }),
 );

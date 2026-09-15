@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { getDatabase, kyivDate, noStore } from "@/lib/server-data";
+import { catalog, overview } from "@/lib/learning-platform";
+import { bootstrapQuestionBank } from "@/lib/platform-bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +48,19 @@ export async function POST() {
         )
         .bind(userId, kyivDate()),
     ]);
-    return Response.json({ ready: true, isGuest: !identity }, noStore());
+    await bootstrapQuestionBank();
+    const [subjects, dashboard] = await Promise.all([
+      catalog(),
+      overview(userId),
+    ]);
+    return Response.json(
+      {
+        ready: true,
+        isGuest: !identity,
+        data: { subjects, ...dashboard },
+      },
+      noStore(),
+    );
   } catch (error) {
     return Response.json(
       {
