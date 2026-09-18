@@ -2137,6 +2137,49 @@
 .answer-option.chosen { background: #c8f87310; border-color: #c8f873a0; box-shadow: inset 3px 0 var(--lime); }
 .answer-option:has(input:focus-visible) { outline: 2px solid var(--lime); outline-offset: 3px; }
 .answer-option:has(input:disabled) { cursor: default; }
+.answer-option.review-correct,
+.answer-option.review-correct.chosen {
+  background: #173e2b;
+  border-color: #63cf91;
+  color: #effff1;
+  box-shadow: inset 3px 0 #63cf91;
+}
+.answer-option.review-incorrect,
+.answer-option.review-incorrect.chosen {
+  background: #482526;
+  border-color: #ef8383;
+  color: #fff0ed;
+  box-shadow: inset 3px 0 #ef8383;
+}
+.answer-option.review-correct b { color: #baf0cb; }
+.answer-option.review-incorrect b { color: #ffd0cc; }
+.answer-state {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.answer-option.review-correct .answer-state { color: #baf0cb; }
+.answer-option.review-incorrect .answer-state { color: #ffd0cc; }
+.match-selects label.review-correct select,
+.platform .question-panel .numeric-answer.review-correct input {
+  border-color: #63cf91;
+  background: #173e2b;
+  color: #effff1;
+}
+.match-selects label.review-incorrect select,
+.platform .question-panel .numeric-answer.review-incorrect input {
+  border-color: #ef8383;
+  background: #482526;
+  color: #fff0ed;
+}
+.review-answer-hint {
+  color: #baf0cb;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.numeric-answer .review-answer-hint { display: block; margin-top: 8px; }
 .match-option { font-size: 16px; line-height: 1.75; }
 .match-selects label { font-size: 15px; }
 .answer-review { font-size: 15px; line-height: 1.8; }

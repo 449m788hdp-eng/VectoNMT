@@ -28,8 +28,14 @@ export function pointsFor(type: string, selected: string, answer: string) {
     return { earned: valid ? expected.filter((part) => actual.has(part)).length : 0, max: expected.length };
   }
   if (type === "ordering") {
-    const actual = selected.split(";").map(normalizeAnswer);
-    const expected = normalizedParts(answer);
+    // Official keys include the position ("1c;2b;3d;4a"), while the answer
+    // controls store the selected marker at each position ("c;b;d;a").
+    const atPosition = (value: string) =>
+      value.split(";").map((part, index) =>
+        normalizeAnswer(part).replace(new RegExp(`^${index + 1}(?=[a-z])`), ""),
+      );
+    const actual = atPosition(selected);
+    const expected = atPosition(answer);
     if (actual.length === expected.length && expected.every((part, index) => actual[index] === part)) return { earned: 3, max: 3 };
     const earned = Number(actual[0] === expected[0]) + Number(actual[expected.length - 1] === expected.at(-1));
     return { earned, max: 3 };

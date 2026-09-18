@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { normalizeAnswer } from "@/lib/nmt-scoring";
+import { normalizeAnswer, pointsFor } from "@/lib/nmt-scoring";
 import "katex/dist/katex.min.css";
 import "./platform.css";
 
@@ -164,6 +164,8 @@ function displayAnswer(item: Row, value: string) {
     .map((v, i) =>
       item.type === "matching"
         ? `${v[0]} → ${marker(v.slice(1))}`
+        : item.type === "ordering"
+          ? `${i + 1}: ${marker(normalizeAnswer(v).replace(new RegExp(`^${i + 1}(?=[a-z])`), "")) || "—"}`
         : item.type === "type_6"
           ? `${i + 1}: ${v || "—"}`
           : marker(v) || "—",
@@ -1717,9 +1719,10 @@ function Player({
             <Pictures images={item.images} />
             <Answer
               item={item}
-              value={draft}
+              value={completed || item.revealed ? item.answer : draft}
               onChange={setDraft}
               disabled={busy || completed || !!item.revealed}
+              review={completed || Boolean(item.revealed)}
             />
             {(completed || Boolean(item.revealed)) && (
               <section
@@ -1895,15 +1898,24 @@ function Answer({
   value,
   onChange,
   disabled,
+  review,
 }: {
   item: Row;
   value: string;
   onChange: (v: string) => void;
   disabled: boolean;
+  review: boolean;
 }) {
   const groups = item.options as Row[];
   const options = groups.flatMap((g) => g.options);
   const parts = value.split(";");
+  const correctParts = String(item.correctAnswer ?? "").split(";").map(normalizeAnswer);
+  const showReview = review && Boolean(item.correctAnswer);
+  const markerLabel = (marker: string, choices: Row[]) =>
+    choices.find((choice) => normalizeAnswer(choice.marker) === marker)?.marker ?? marker;
+  const orderMarker = (part: string, position: number) =>
+    normalizeAnswer(part).replace(new RegExp(`^${position + 1}(?=[a-z])`), "");
+  const numericCorrect = showReview && pointsFor("numeric", value, item.correctAnswer).earned > 0;
   const setPosition = (i: number, v: string, n: number) => {
     const arr = Array.from({ length: n }, (_, index) => parts[index] ?? "");
     arr[i] = v;
@@ -1911,7 +1923,7 @@ function Answer({
   };
   if (item.type === "numeric")
     return (
-      <label className="numeric-answer">
+      <label className={`numeric-answer ${showReview && value ? numericCorrect ? "review-correct" : "review-incorrect" : ""}`}>
         Числова відповідь
         <input
           disabled={disabled}
@@ -1923,6 +1935,7 @@ function Answer({
         <small>
           Використовуй цифри, мінус і кому або крапку. Без одиниць вимірювання.
         </small>
+        {showReview && <span className="review-answer-hint">Правильно: {item.correctAnswer}</span>}
       </label>
     );
   if (item.type === "matching")
@@ -1953,8 +1966,9 @@ function Answer({
             const left = normalizeAnswer(o.marker);
             const val =
               parts.find((v) => v.startsWith(left))?.slice(left.length) ?? "";
+            const expected = correctParts.find((v) => v.startsWith(left))?.slice(left.length) ?? "";
             return (
-              <label key={o.marker}>
+              <label key={o.marker} className={showReview && val ? val === expected ? "review-correct" : "review-incorrect" : ""}>
                 {o.marker}
                 <select
                   disabled={disabled}
@@ -1972,6 +1986,7 @@ function Answer({
                     </option>
                   ))}
                 </select>
+                {showReview && <span className="review-answer-hint">{val === expected ? "Правильно" : `Правильно: ${markerLabel(expected, groups[1]?.options ?? [])}`}</span>}
               </label>
             );
           })}
@@ -1993,12 +2008,14 @@ function Answer({
           ))}
         </div>
         <div className="match-selects">
-          {options.map((_: Row, i: number) => (
-            <label key={i}>
+          {options.map((_: Row, i: number) => {
+            const chosen = orderMarker(parts[i] ?? "", i);
+            const expected = orderMarker(correctParts[i] ?? "", i);
+            return <label key={i} className={showReview && chosen ? chosen === expected ? "review-correct" : "review-incorrect" : ""}>
               {i + 1} місце
               <select
                 disabled={disabled}
-                value={parts[i] ?? ""}
+                value={chosen}
                 onChange={(e) => setPosition(i, e.target.value, options.length)}
               >
                 <option value="">—</option>
@@ -2008,8 +2025,9 @@ function Answer({
                   </option>
                 ))}
               </select>
+              {showReview && <span className="review-answer-hint">{chosen === expected ? "Правильно" : `Правильно: ${markerLabel(expected, options)}`}</span>}
             </label>
-          ))}
+          })}
         </div>
       </div>
     );
@@ -2023,7 +2041,7 @@ function Answer({
             </legend>
             {g.options.map((o: Row) => (
               <label
-                className={`answer-option ${parts[i] === normalizeAnswer(o.marker) ? "chosen" : ""}`}
+                className={`answer-option ${parts[i] === normalizeAnswer(o.marker) ? "chosen" : ""} ${showReview && correctParts[i] === normalizeAnswer(o.marker) ? "review-correct" : ""} ${showReview && parts[i] === normalizeAnswer(o.marker) && correctParts[i] !== normalizeAnswer(o.marker) ? "review-incorrect" : ""}`}
                 key={o.marker}
               >
                 <input
@@ -2038,6 +2056,8 @@ function Answer({
                 <b>{o.marker}</b>
                 <Rich text={o.text} />
                 <Pictures images={o.images} />
+                {showReview && correctParts[i] === normalizeAnswer(o.marker) && <span className="answer-state">Правильно</span>}
+                {showReview && parts[i] === normalizeAnswer(o.marker) && correctParts[i] !== normalizeAnswer(o.marker) && <span className="answer-state">Твоя помилка</span>}
               </label>
             ))}
           </fieldset>
@@ -2050,9 +2070,11 @@ function Answer({
         const key = normalizeAnswer(o.marker);
         const multiple = item.type === "multiple_choice";
         const checked = multiple ? parts.includes(key) : value === key;
+        const isCorrect = showReview && correctParts.includes(key);
+        const isIncorrect = showReview && checked && !isCorrect;
         return (
           <label
-            className={`answer-option ${checked ? "chosen" : ""}`}
+            className={`answer-option ${checked ? "chosen" : ""} ${isCorrect ? "review-correct" : ""} ${isIncorrect ? "review-incorrect" : ""}`}
             key={o.marker}
           >
             <input
@@ -2077,6 +2099,8 @@ function Answer({
             <b>{o.marker}</b>
             <Rich text={o.text} />
             <Pictures images={o.images} />
+            {isCorrect && <span className="answer-state">Правильно</span>}
+            {isIncorrect && <span className="answer-state">Твоя помилка</span>}
           </label>
         );
       })}

@@ -42,6 +42,8 @@ assert.equal(pointsFor("matching", "1а;2б", "1a;2b;3c;4d").earned, 2);
 assert.equal(pointsFor("multiple_choice", "1;2;3;4;5;6;7", "1;4;7").earned, 0);
 assert.equal(pointsFor("ordering", "a;;;d", "a;b;c;d").earned, 2);
 assert.equal(pointsFor("ordering", "a;d", "a;b;c;d").earned, 1);
+assert.equal(pointsFor("ordering", "c;b;d;a", "1c;2b;3d;4a").earned, 3);
+assert.equal(pointsFor("ordering", "c;;;a", "1c;2b;3d;4a").earned, 2);
 for (const table of Object.values(officialTables)) {
   assert.equal([...table.values()][0], 100);
   assert.equal([...table.values()].at(-1), 200);
