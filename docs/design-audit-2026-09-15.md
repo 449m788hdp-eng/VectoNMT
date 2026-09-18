@@ -16,7 +16,7 @@ These are principles, not copied branding or page layouts. Product direction: da
 | Surface | Change |
 | --- | --- |
 | Shell and navigation | Clear active states, keyboard focus, skip link, named screen routes, compact mobile bottom navigation. |
-| Overview | Practice-first main action, secondary simulation entry, real weak-topic recommendation, visible active attempt, four enrolled subject cards. |
+| Overview | Direct one-click practice with enrolled-subject and question-count controls, separate simulation entry, real weak-topic recommendation, visible active attempt, four enrolled subject cards. During an active attempt, the resume card replaces the quick-start controls. |
 | Practice setup | Named setup card, readable inputs and count presets, searchable syllabus, topic selection scrolls back to setup, honest availability and empty search feedback. |
 | Simulation setup | Two-stage route, optional break copy, accessible fourth-subject selector, single launch action. |
 | Exam workspace | Larger conditions and answers, quieter metadata, consistent subject tabs, saved-answer progress, numbered navigation with accessible state labels. |

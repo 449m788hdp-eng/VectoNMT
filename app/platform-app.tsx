@@ -423,6 +423,7 @@ export default function PlatformApp({
     targetScore: data.profile.target_score,
     onboardingCompleted: Boolean(data.profile.onboarding_completed),
   };
+  const greetingName = profile.firstName === "Учень" ? "" : profile.firstName;
   const practice = (slug: string, topicId = "") => {
     setSubject(slug);
     setSection("");
@@ -433,6 +434,8 @@ export default function PlatformApp({
   };
   const stats = data.stats;
   const focusTopic = data.topicStats.find((t: Row) => t.earned < t.maximum);
+  const enrolledSubjects = data.subjects.filter((s: Row) => s.required || s.slug === profile.fourthSubject);
+  const homeSubject = enrolledSubjects.some((s: Row) => s.slug === subject) ? subject : profile.fourthSubject;
   const changeView = (v: string) => {
     setView(v);
     history.replaceState(null, "", `#${v}`);
@@ -483,10 +486,10 @@ export default function PlatformApp({
               onClick={() => setView("settings")}
             >
               <span className="avatar">
-                {profile.firstName.slice(0, 1) || "В"}
+                {greetingName.slice(0, 1) || "В"}
               </span>
               <span>
-                <strong>{profile.firstName || "Твій профіль"}</strong>
+                <strong>{greetingName || "Твій профіль"}</strong>
                 <small>
                   {profile.grade === "graduate"
                     ? "Випускник"
@@ -563,14 +566,9 @@ export default function PlatformApp({
               <>
                 <div className="page-heading">
                   <div>
-                    <p className="eyebrow">КРОК ЗА КРОКОМ ДО СВОЄЇ ЦІЛІ</p>
-                    <h1>
-                      Привіт, {profile.firstName || "друже"}{" "}
-                      <span className="lime">↗</span>
-                    </h1>
-                    <p>
-                      Твій наступний результат починається з практики сьогодні.
-                    </p>
+                    <p className="eyebrow">ТВІЙ НАВЧАЛЬНИЙ ПРОСТІР</p>
+                    <h1>Привіт, {greetingName || "друже"}</h1>
+                    <p>З чого почнемо сьогодні?</p>
                   </div>
                   <span className="date-label">
                     {new Date().toLocaleDateString("uk-UA", {
@@ -579,70 +577,44 @@ export default function PlatformApp({
                     })}
                   </span>
                 </div>
-                <div className="overview-grid">
-                  <section className="hero-card">
-                    <div className="hero-content">
-                      <span className="pill">ПІДГОТОВКА У ТВОЄМУ ТЕМПІ</span>
-                      <h2>
-                        Маленький крок сьогодні.
-                        <br />
-                        Впевненість на НМТ.
-                      </h2>
-                      <p>
-                        Обери тему й потренуйся без поспіху.
-                        <br />
-                        Розбирай помилки та рухайся до своєї цілі.
-                      </p>
-                      <Button
-                        className="primary"
-                        onClick={() => changeView("practice")}
-                      >
-                        Почати практику <ArrowRight size={18} />
+                {!data.active.length && <div className="overview-workspace">
+                  <section className="quick-practice panel" aria-labelledby="quick-practice-title">
+                    <div className="quick-practice-heading">
+                      <span className="icon-bubble"><BookOpen size={22} /></span>
+                      <div><span className="eyebrow">КОРОТКЕ ТРЕНУВАННЯ</span><h2 id="quick-practice-title">Почни за хвилину</h2></div>
+                    </div>
+                    <p>Обери предмет і кількість завдань. Відповіді можна розібрати одразу після кожного запитання.</p>
+                    <div className="quick-subjects" role="group" aria-label="Предмет для швидкого тренування">
+                      {enrolledSubjects.map((s: Row) => (
+                        <button key={s.slug} type="button" aria-pressed={homeSubject === s.slug} onClick={() => setSubject(s.slug)}>
+                          {s.name}{homeSubject === s.slug && <Check size={16} />}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="quick-practice-footer">
+                      <div className="quick-count" role="group" aria-label="Кількість запитань">
+                        {[5, 10, 20].map((n) => <button key={n} aria-pressed={count === n} onClick={() => setCount(n)}>{n}</button>)}
+                      </div>
+                      <Button className="primary" disabled={busy} onClick={() => data.active[0] ? open(data.active[0].id) : action({ action: "start", mode: "practice", subject: homeSubject, count })}>
+                        {busy ? "Відкриваємо…" : data.active[0] ? "Продовжити тест" : "Почати тренування"} <ArrowRight size={18} />
                       </Button>
-                      <button className="text-link hero-secondary" onClick={() => changeView("simulation")}>Спробувати симуляцію НМТ <ArrowUpRight size={16} /></button>
                     </div>
-                    <div className="hero-art" aria-hidden="true">
-                      <div className="orbit orbit-one" />
-                      <div className="orbit orbit-two" />
-                      <span>↗</span>
-                      <div className="art-caption">ТВІЙ ВЕКТОР РОСТУ</div>
-                    </div>
+                    <button className="text-link quick-topic-link" onClick={() => practice(homeSubject)}>Обрати конкретну тему <ChevronRight size={17} /></button>
                   </section>
-                  <section className="daily-card">
-                    <div className="icon-bubble">
-                      <Target />
-                    </div>
-                    <span className="eyebrow">
-                      {focusTopic ? "РЕКОМЕНДОВАНО ДЛЯ ТЕБЕ" : "ШВИДКИЙ СТАРТ"}
-                    </span>
-                    <h3>
-                      {focusTopic ? focusTopic.name : "10 запитань."}
-                      {!focusTopic && (
-                        <>
-                          <br />
-                          Більше впевненості.
-                        </>
-                      )}
-                    </h3>
-                    <p>
-                      {focusTopic
-                        ? `Тут твій результат поки найнижчий — коротка практика допоможе закріпити тему.`
-                        : "Почни з математики або обери тему, яку хочеш підтягнути."}
-                    </p>
-                    <button
-                      className="text-link"
-                      onClick={() =>
-                        practice(
-                          focusTopic?.subject_slug ?? "mathematics",
-                          focusTopic ? String(focusTopic.topic_id) : "",
-                        )
-                      }
-                    >
-                      {focusTopic ? "Попрацювати над темою" : "Почати практику"}{" "}
-                      <ArrowRight size={18} />
+                  <div className="overview-side">
+                    {focusTopic && <section className="focus-card panel">
+                      <span className="eyebrow">ВАРТО ПОВТОРИТИ</span>
+                      <h3>{focusTopic.name}</h3>
+                      <p>За відповідями в завершених тестах ця тема поки дається складніше.</p>
+                      <button className="text-link" onClick={() => practice(focusTopic.subject_slug, String(focusTopic.topic_id))}>Потренувати тему <ArrowRight size={17} /></button>
+                    </section>}
+                    <button className="simulation-entry panel" onClick={() => changeView("simulation")}>
+                      <span className="icon-bubble"><Timer size={22} /></span>
+                      <span><strong>Симуляція НМТ</strong><small>4 предмети · 2 блоки по 120 хвилин</small></span>
+                      <ArrowUpRight size={19} />
                     </button>
-                  </section>
-                </div>
+                  </div>
+                </div>}
                 <div className="stat-grid">
                   {[
                     [BookOpen, stats.tests, "Завершених тестів"],
@@ -669,17 +641,17 @@ export default function PlatformApp({
                 <div className="section-heading">
                   <div>
                     <h2>Твої предмети</h2>
-                    <p>Від конкретної теми до впевненого результату.</p>
+                    <p>Обери предмет, щоб перейти до тем і підтем.</p>
                   </div>
                   <button
                     className="text-link"
-                    onClick={() => setView("practice")}
+                    onClick={() => changeView("practice")}
                   >
                     Усі теми <ArrowUpRight size={17} />
                   </button>
                 </div>
                 <div className="subject-grid">
-                  {data.subjects.filter((s: Row) => s.required || s.slug === profile.fourthSubject).map((s: Row) => {
+                  {enrolledSubjects.map((s: Row) => {
                     const i = data.subjects.findIndex((v: Row) => v.slug === s.slug);
                     return (
                     <button
