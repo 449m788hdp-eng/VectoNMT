@@ -26,14 +26,17 @@ const one = async (sql: string, ...args: any[]) =>
     .first<Row>();
 
 export async function catalog(): Promise<Row[]> {
-  const [subjects, topics] = await Promise.all([
-    rows(
+  const db = getDatabase();
+  const [subjectResult, topicResult] = await db.batch<Row>([
+    db.prepare(
       `SELECT s.*, e.config_json, e.year, COUNT(q.id) question_count, SUM(CASE WHEN q.source_kind='official' THEN 1 ELSE 0 END) official_count FROM subjects s JOIN exam_configs e ON e.subject_slug=s.slug LEFT JOIN questions q ON q.subject_slug=s.slug AND q.active=1 GROUP BY s.slug ORDER BY s.position`,
     ),
-    rows(
+    db.prepare(
       `SELECT t.*,COUNT(q.id) question_count FROM topics t LEFT JOIN questions q ON q.topic_id=t.id AND q.active=1 WHERE t.position>=0 AND t.section_name!='Поза програмою НМТ-2026' GROUP BY t.id ORDER BY t.subject_slug,t.position,t.name`,
     ),
   ]);
+  const subjects = subjectResult.results;
+  const topics = topicResult.results;
   return subjects.map((s) => ({
     ...s,
     config: parse(s.config_json),
@@ -43,34 +46,36 @@ export async function catalog(): Promise<Row[]> {
 }
 
 export async function overview(user: string) {
-  const [profile, history, active, topicStats, totals, days, legacy] =
-    await Promise.all([
-      one("SELECT * FROM profiles WHERE user_id=?", user),
-      rows(
+  const db = getDatabase();
+  const [profileResult, historyResult, activeResult, topicStatsResult, totalsResult, daysResult, legacyResult] =
+    await db.batch<Row>([
+      db.prepare("SELECT * FROM profiles WHERE user_id=?").bind(user),
+      db.prepare(
         `SELECT id,title,mode,completed_at,result_json FROM learning_sessions WHERE user_id=? AND status='completed' ORDER BY completed_at DESC LIMIT 100`,
-        user,
-      ),
-      rows(
+      ).bind(user),
+      db.prepare(
         `SELECT id,title,mode,status,stage,revision FROM learning_sessions WHERE user_id=? AND status IN ('active','break') ORDER BY created_at DESC`,
-        user,
-      ),
-      rows(
+      ).bind(user),
+      db.prepare(
         `SELECT t.id topic_id,t.name,t.subject_slug,SUM(i.points) earned,SUM(i.max_points) maximum,COUNT(*) count FROM session_items i JOIN learning_sessions s ON s.id=i.session_id JOIN topics t ON t.id=i.topic_id WHERE s.user_id=? AND s.status='completed' GROUP BY t.id ORDER BY 1.0*SUM(i.points)/SUM(i.max_points) LIMIT 12`,
-        user,
-      ),
-      one(
+      ).bind(user),
+      db.prepare(
         `SELECT COUNT(DISTINCT s.id) tests,SUM(i.points) earned,SUM(i.max_points) maximum,COUNT(i.question_id) questions FROM learning_sessions s JOIN session_items i ON i.session_id=s.id WHERE s.user_id=? AND s.status='completed'`,
-        user,
-      ),
-      rows(
+      ).bind(user),
+      db.prepare(
         `SELECT completed_at FROM learning_sessions WHERE user_id=? AND status='completed' ORDER BY completed_at DESC`,
-        user,
-      ),
-      one(
+      ).bind(user),
+      db.prepare(
         "SELECT COUNT(*) count FROM test_attempts WHERE user_id=? AND completed_at IS NOT NULL",
-        user,
-      ),
+      ).bind(user),
     ]);
+  const profile = profileResult.results[0] ?? null;
+  const history = historyResult.results;
+  const active = activeResult.results;
+  const topicStats = topicStatsResult.results;
+  const totals = totalsResult.results[0] ?? null;
+  const days = daysResult.results;
+  const legacy = legacyResult.results[0] ?? null;
   let streak = 0;
   const dates = new Set(days.map((d) => kyivDate(new Date(d.completed_at))));
   const date = new Date();
@@ -118,7 +123,7 @@ async function complete(s: Row) {
     maximum: 0,
     count: list.length,
   };
-  const statements = [];
+  const scoredItems: { id: string; points: number }[] = [];
   const db = getDatabase();
   for (const subject of config.subjects) {
     const entries = list.filter((i) => i.subject_slug === subject.slug);
@@ -129,13 +134,7 @@ async function complete(s: Row) {
       const score = pointsFor(q.question_type, item.answer, q.correct_answer);
       earned += score.earned;
       maximum += score.max;
-      statements.push(
-        db
-          .prepare(
-            `UPDATE session_items SET points=? WHERE session_id=? AND question_id=? AND EXISTS(SELECT 1 FROM learning_sessions WHERE id=? AND status!='completed' AND revision=?)`,
-          )
-          .bind(score.earned, s.id, item.question_id, s.id, s.revision),
-      );
+      scoredItems.push({ id: item.question_id, points: score.earned });
     }
     result.subjects.push({
       slug: subject.slug,
@@ -146,6 +145,25 @@ async function complete(s: Row) {
     });
     result.earned += earned;
     result.maximum += maximum;
+  }
+  const statements = [];
+  for (let offset = 0; offset < scoredItems.length; offset += 20) {
+    const group = scoredItems.slice(offset, offset + 20);
+    const cases = group.map(() => "WHEN ? THEN ?").join(" ");
+    const ids = group.map(() => "?").join(",");
+    statements.push(
+      db
+        .prepare(
+          `UPDATE session_items SET points=CASE question_id ${cases} ELSE points END WHERE session_id=? AND question_id IN (${ids}) AND EXISTS(SELECT 1 FROM learning_sessions WHERE id=? AND status!='completed' AND revision=?)`,
+        )
+        .bind(
+          ...group.flatMap((item) => [item.id, item.points]),
+          s.id,
+          ...group.map((item) => item.id),
+          s.id,
+          s.revision,
+        ),
+    );
   }
   statements.push(
     db
@@ -365,23 +383,6 @@ export async function start(user: string, p: Row) {
       : 1;
     const snapshot = JSON.stringify(q);
     const maxPoints = pointsFor(q.question_type, "", q.correct_answer).max;
-    stmts.push(
-      db
-        .prepare(
-          `INSERT INTO session_items(session_id,question_id,subject_slug,topic_id,canonical_key,stage,position,snapshot_json,max_points) VALUES(?,?,?,?,?,?,?,?,?)`,
-        )
-        .bind(
-          id,
-          q.id,
-          q.subject_slug,
-          q.topic_id,
-          q.canonical_key,
-          stage,
-          position,
-          snapshot,
-          maxPoints,
-        ),
-    );
     return {
       session_id: id,
       question_id: q.id,
@@ -398,6 +399,28 @@ export async function start(user: string, p: Row) {
       max_points: maxPoints,
     };
   });
+  for (let offset = 0; offset < sessionRows.length; offset += 10) {
+    const group = sessionRows.slice(offset, offset + 10);
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO session_items(session_id,question_id,subject_slug,topic_id,canonical_key,stage,position,snapshot_json,max_points) VALUES ${group.map(() => "(?,?,?,?,?,?,?,?,?)").join(",")}`,
+        )
+        .bind(
+          ...group.flatMap((item) => [
+            id,
+            item.question_id,
+            item.subject_slug,
+            item.topic_id,
+            item.canonical_key,
+            item.stage,
+            item.position,
+            item.snapshot_json,
+            item.max_points,
+          ]),
+        ),
+    );
+  }
   await db.batch(stmts);
   return presentSession(
     {

@@ -15,7 +15,6 @@ import {
   Target,
   Flame,
   ChevronRight,
-  Download,
   ShieldCheck,
   Clock,
   CheckCircle2,
@@ -471,16 +470,6 @@ export default function PlatformApp({
                 );
               })}
             </nav>
-            <div className="sidebar-note">
-              <ShieldCheck size={22} />
-              <strong>Знання, а не вгадування</strong>
-              <p>
-                Практикуйся у своєму темпі. Кожна відповідь наближає до цілі.
-              </p>
-              <a href="/downloads/vekto-question-bank.sqlite" download>
-                <Download size={15} /> База запитань
-              </a>
-            </div>
             <button
               className="profile-link"
               onClick={() => setView("settings")}

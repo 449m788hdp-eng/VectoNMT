@@ -160,34 +160,6 @@
   margin-left: auto;
   padding: 2px 4px;
 }
-.sidebar-note {
-  margin-top: auto;
-  background: #171d15;
-  border: 1px solid #c8f87312;
-  border-radius: 18px;
-  padding: 18px 15px;
-}
-.sidebar-note svg {
-  color: var(--lime);
-  margin-bottom: 12px;
-}
-.sidebar-note strong {
-  font-size: 13px;
-}
-.sidebar-note p {
-  font-size: 12px;
-  margin: 8px 0 16px;
-}
-.sidebar-note a {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--lime);
-}
-.sidebar-note a svg {
-  margin: 0;
-}
 .profile-link {
   display: flex;
   gap: 10px;
@@ -2077,11 +2049,6 @@
 .skip-link:focus { top: 12px; }
 .sidebar { background: #101613; padding-top: 28px; }
 .sidebar-label { font-size: 11px; color: #94a194; margin-top: 36px; }
-.sidebar-note { background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding-inline: 10px; }
-.sidebar-note p { font-size: 13px; }
-.sidebar-note > svg { display: none; }
-.sidebar-note strong, .sidebar-note p { display: none; }
-.sidebar-note a { font-size: 13px; min-height: 44px; align-items: center; }
 .sidebar nav button { min-height: 50px; }
 .sidebar .tiny-tag { font-size: 10px; }
 .platform-main { max-width: 1600px; padding-inline: clamp(24px, 3.2vw, 52px); }

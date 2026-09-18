@@ -3,12 +3,13 @@ import spec from "@/data/nmt-exam-spec.json";
 import { allQuestionRecords, subjectCatalog } from "./question-bank";
 import { officialTables } from "./nmt-scoring";
 import { getDatabase } from "./server-data";
-
-const subjectSlugs = Array.from(subjectCatalog.keys());
+import { PLATFORM_BANK_VERSION } from "./platform-bank-version";
 
 // Versioned data installation, separate from schema migrations. Classification
 // is prepared offline. Exam/training requests subsequently read D1 only.
 export async function bootstrapSubject(slug: string) {
+  if (index.version !== PLATFORM_BANK_VERSION)
+    throw new Error("Версії банку запитань не збігаються");
   const db = getDatabase(),
     s = subjectCatalog.get(slug);
   if (!s) throw Error("Невідомий предмет");
@@ -16,7 +17,7 @@ export async function bootstrapSubject(slug: string) {
     .prepare("SELECT bank_version FROM subjects WHERE slug=?")
     .bind(slug)
     .first<{ bank_version: number }>();
-  if (state && state.bank_version >= index.version) return;
+  if (state && state.bank_version >= PLATFORM_BANK_VERSION) return;
   await db
     .prepare(
       `INSERT INTO subjects(slug,name,exam_question_count,required,position,bank_version) VALUES(?,?,?,?,?,0) ON CONFLICT(slug) DO NOTHING`,
@@ -112,20 +113,6 @@ export async function bootstrapSubject(slug: string) {
       ),
     db
       .prepare("UPDATE subjects SET bank_version=? WHERE slug=?")
-      .bind(index.version, slug),
+      .bind(PLATFORM_BANK_VERSION, slug),
   ]);
-}
-
-export async function bootstrapQuestionBank() {
-  const state = await getDatabase()
-    .prepare("SELECT slug,bank_version FROM subjects")
-    .all<{ slug: string; bank_version: number }>();
-  const versions = new Map(
-    state.results.map((subject) => [subject.slug, subject.bank_version]),
-  );
-  const missing = subjectSlugs.filter(
-    (slug) => (versions.get(slug) ?? 0) < index.version,
-  );
-  for (const slug of missing) await bootstrapSubject(slug);
-  return { ready: true, updated: missing.length };
 }

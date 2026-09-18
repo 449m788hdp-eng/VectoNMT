@@ -8,6 +8,7 @@ import {
 } from "../lib/question-bank";
 import { officialTables } from "../lib/nmt-scoring";
 import spec from "../data/nmt-exam-spec.json";
+import { PLATFORM_BANK_VERSION } from "../lib/platform-bank-version";
 
 // Offline import only. No AI, classification or content generation runs on a test request.
 const quote = (v: unknown) => `'${String(v ?? "").replaceAll("'", "''")}'`;
@@ -26,7 +27,7 @@ const sql: string[] = [];
 const index: Record<string, unknown[]> = {};
 for (const [slug, s] of subjectCatalog) {
   sql.push(
-    `INSERT INTO subjects(slug,name,exam_question_count,required,position,bank_version) VALUES(${quote(slug)},${quote(s.name)},${s.examQuestionCount},${s.required},${s.position},6) ON CONFLICT(slug) DO UPDATE SET bank_version=6;`,
+    `INSERT INTO subjects(slug,name,exam_question_count,required,position,bank_version) VALUES(${quote(slug)},${quote(s.name)},${s.examQuestionCount},${s.required},${s.position},${PLATFORM_BANK_VERSION}) ON CONFLICT(slug) DO UPDATE SET bank_version=${PLATFORM_BANK_VERSION};`,
   );
   sql.push(`UPDATE topics SET position=-1 WHERE subject_slug=${quote(slug)};`);
   for (const [i, section] of topicTaxonomy[slug].entries())
@@ -133,7 +134,7 @@ for (const q of allQuestionRecords) {
 writeFileSync("data/platform-seed.sql", sql.join("\n") + "\n");
 writeFileSync(
   "data/platform-bank-index.json",
-  JSON.stringify({ version: 6, topics: topicTaxonomy, questions: index }),
+  JSON.stringify({ version: PLATFORM_BANK_VERSION, topics: topicTaxonomy, questions: index }),
 );
 console.log({
   records: allQuestionRecords.length,

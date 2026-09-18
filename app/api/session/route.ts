@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { getDatabase, kyivDate, noStore } from "@/lib/server-data";
 import { catalog, overview } from "@/lib/learning-platform";
-import { bootstrapQuestionBank } from "@/lib/platform-bootstrap";
+import { bootstrapQuestionBank } from "@/lib/platform-bank-ready";
 
 export const dynamic = "force-dynamic";
 
@@ -25,30 +25,32 @@ export async function POST() {
     const email = identity?.email ?? `${guestId}@guest.vekto`;
     const suggestedName = identity?.fullName?.trim() || "Учень";
     const db = getDatabase();
-    await db.batch([
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO profiles (user_id, email, display_name, first_name, last_name, grade, fourth_subject, subject_targets_json, target_score, onboarding_completed) VALUES (?1, ?2, ?3, ?4, '', '11', 'english', ?5, 180, 0)",
-        )
-        .bind(
-          userId,
-          email,
-          suggestedName,
-          suggestedName.split(/\s+/)[0] || "Учень",
-          JSON.stringify({
-            mathematics: 180,
-            ukrainian: 180,
-            history: 180,
-            english: 180,
-          }),
-        ),
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO study_days (user_id, study_date) VALUES (?1, ?2)",
-        )
-        .bind(userId, kyivDate()),
+    await Promise.all([
+      db.batch([
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO profiles (user_id, email, display_name, first_name, last_name, grade, fourth_subject, subject_targets_json, target_score, onboarding_completed) VALUES (?1, ?2, ?3, ?4, '', '11', 'english', ?5, 180, 0)",
+          )
+          .bind(
+            userId,
+            email,
+            suggestedName,
+            suggestedName.split(/\s+/)[0] || "Учень",
+            JSON.stringify({
+              mathematics: 180,
+              ukrainian: 180,
+              history: 180,
+              english: 180,
+            }),
+          ),
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO study_days (user_id, study_date) VALUES (?1, ?2)",
+          )
+          .bind(userId, kyivDate()),
+      ]),
+      bootstrapQuestionBank(),
     ]);
-    await bootstrapQuestionBank();
     const [subjects, dashboard] = await Promise.all([
       catalog(),
       overview(userId),
